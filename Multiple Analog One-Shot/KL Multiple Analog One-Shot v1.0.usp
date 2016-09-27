@@ -1,0 +1,58 @@
+// Dealer Name:
+// System Name:
+// System Number:
+// Programmer:
+// Comments:
+
+// - Compiler Directives ------------------------------------------------------
+// #ENABLE_DYNAMIC
+// #SYMBOL_NAME ""
+// #HINT ""
+// #DEFINE_CONSTANT
+// #CATEGORY "" 
+// #PRINT_TO_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+// #OUTPUT_SHIFT 
+// #HELP_PDF_FILE ""
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #ENCODING_ASCII
+// #ENCODING_UTF16
+// #ENCODING_INHERIT_FROM_PARENT
+// #ENCODING_INHERIT_FROM_PROGRAM
+
+// - Inputs -------------------------------------------------------------------
+// DIGITAL_INPUT 
+ANALOG_INPUT ain[255];
+// STRING_INPUT 
+// BUFFER_INPUT 
+
+// - Outputs ------------------------------------------------------------------
+DIGITAL_OUTPUT out;
+// ANALOG_OUTPUT 
+// STRING_OUTPUT 
+
+// - Parameters ---------------------------------------------------------------
+INTEGER_PARAMETER duration;
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+// STRING_PARAMETER
+
+// - Event Handlers -----------------------------------------------------------
+
+THREADSAFE CHANGE ain
+{
+	Pulse(duration, out);
+}
+
+// - Main ---------------------------------------------------------------------
+
+Function Main()
+{
+	out = 0;
+
+	WaitForInitializationComplete();
+}
