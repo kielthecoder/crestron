@@ -1,0 +1,122 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+  (Fill in comments below)
+*******************************************************************************************/
+/*
+Dealer Name:
+System Name:
+System Number:
+Programmer:
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+  (Uncomment and declare compiler directives as needed)
+*******************************************************************************************/
+// #ENABLE_DYNAMIC
+// #SYMBOL_NAME ""
+// #HINT ""
+// #DEFINE_CONSTANT
+// #CATEGORY "" 
+// #PRINT_TO_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+// #OUTPUT_SHIFT 
+// #HELP_PDF_FILE ""
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #ENCODING_ASCII
+// #ENCODING_UTF16
+// #ENCODING_INHERIT_FROM_PARENT
+// #ENCODING_INHERIT_FROM_PROGRAM
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+  (Uncomment and declare inputs and outputs as needed)
+*******************************************************************************************/
+BUFFER_INPUT   Text_In[10000];
+
+DIGITAL_OUTPUT Match_Found;
+ANALOG_OUTPUT  Text_Length;
+STRING_OUTPUT  Text_Out;
+
+/*******************************************************************************************
+  Parameters
+  (Uncomment and declare parameters as needed)
+*******************************************************************************************/
+STRING_PARAMETER Match_Start[255], Match_End[255];
+
+/*******************************************************************************************
+  Global Variables
+  (Uncomment and declare global variables as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: myString = "";
+*******************************************************************************************/
+// INTEGER
+// LONG_INTEGER
+// SIGNED_INTEGER
+// SIGNED_LONG_INTEGER
+// STRING
+
+/*******************************************************************************************
+  Functions
+  (Add any additional functions here)
+  Note:  Functions must be physically placed before the location in
+         the code that calls them.
+*******************************************************************************************/
+
+STRING_FUNCTION Trim (STRING text)
+{
+	INTEGER i, j;
+	
+	For (i = 1 To Len(text))
+	{
+		If (Byte(text, i) > 32)
+			Break;
+	}
+	
+	For (j = Len(text) To i Step -1)
+	{
+		If (Byte(text, j) > 32)
+			Break;
+	}
+	
+	Return(Mid(text, i, j - i + 1));
+}
+
+/*******************************************************************************************
+  Event Handlers
+  (Uncomment and declare additional event handlers as needed)
+*******************************************************************************************/
+
+CHANGE Text_In
+{
+	INTEGER i, m, n;
+	STRING temp[10000];
+	
+	m = Find(Match_Start, Text_In, 1);
+	
+	If (m > 0)
+	{
+		n = Find(Match_End, Text_In, m);
+		
+		IF (n > 0)
+		{
+			temp = Remove(Match_End, Text_In, 1);
+			
+			i = m + Len(Match_Start);
+			temp = Trim(Mid(temp, i, n - i));
+			
+			Match_Found = 1;
+			Text_Length = Len(temp);
+			Text_Out = temp;
+			
+			Return;
+		}
+	}
+	
+	Match_Found = 0;
+}
+
