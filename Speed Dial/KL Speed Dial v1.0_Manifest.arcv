@@ -1,0 +1,17 @@
+[BEGIN]
+  ObjTp=FSgntr
+  Sgntr=ArchiveManifest
+  RelVrs=4.09.04
+  IsProgram=0
+  TopLevelProgram=KL Speed Dial v1.0.umc
+[END]
+[BEGIN]
+  ObjTp=ArchiveItem
+  File=KL Speed Dial v1.0.umc
+  Scope=1
+[END]
+[BEGIN]
+  ObjTp=ArchiveItem
+  File=KL Speed Dial v1.0.ush
+  Scope=1
+[END]
