@@ -1,0 +1,100 @@
+// --- SIMPL+ Module Information --------------------------------------------
+//
+// Dealer Name:
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+#DIGITAL_EXPAND InputsWithOutputs
+
+//#USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+DIGITAL_INPUT  Clear;
+DIGITAL_INPUT  Previous;
+DIGITAL_INPUT  Goto_Page[10,10];
+
+// --- Outputs --------------------------------------------------------------
+
+DIGITAL_OUTPUT _SKIP_, _SKIP_;
+DIGITAL_OUTPUT Show_Page[10,10];
+
+// --- Parameters -----------------------------------------------------------
+
+// --- Global Variables -----------------------------------------------------
+
+INTEGER giCurrentPage[100];
+INTEGER giPageIndex;
+
+// --- Functions ------------------------------------------------------------
+
+// --- Callbacks ------------------------------------------------------------
+
+// --- Event Handlers -------------------------------------------------------
+
+PUSH Clear
+{
+	// Reset pointer
+	giPageIndex = 0;
+	Trace("PageIndex = %d", giPageIndex);
+	
+	// Update feedback
+	SetArray(Show_Page, 0);
+}
+
+PUSH Previous
+{
+	// Are we at the first page yet?
+	If (giPageIndex > 1)
+		giPageIndex = giPageIndex - 1;
+		
+	// Update feedback
+	SetArray(Show_Page, 0);
+	Show_Page[giCurrentPage[giPageIndex]] = 1;
+}
+
+PUSH Goto_Page
+{
+	INTEGER i, n;
+	
+	// n is page number (1 - 10)
+	n = GetLastModifiedArrayIndex();
+	
+	// Is this page different from the current page?
+	If (n <> giCurrentPage[giPageIndex])
+	{	
+		// Update pointer
+		If (giPageIndex < 100)
+			giPageIndex = giPageIndex + 1;
+		Else
+		{
+			// Shift array down to make room for next page
+			For (i = 1 To 99)
+			{
+				giCurrentPage[i] = giCurrentPage[i + 1];
+			}
+		}
+		
+		// Remember this page
+		giCurrentPage[giPageIndex] = n;
+		Trace("PageIndex = %d", giPageIndex);
+		
+		// Update feedback
+		SetArray(Show_Page, 0);
+		Show_Page[n] = 1;
+	}
+}
+
+// --- Main() ---------------------------------------------------------------
+
+Function Main()
+{
+    WaitForInitializationComplete();
+}

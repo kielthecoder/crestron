@@ -1,0 +1,55 @@
+// --- SIMPL+ Module Information --------------------------------------------
+//
+// Dealer Name:
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+
+//#USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+STRING_INPUT  From_Simpl[10];
+
+// --- Outputs --------------------------------------------------------------
+
+STRING_OUTPUT To_Device;
+
+// --- Parameters -----------------------------------------------------------
+
+// --- Global Variables -----------------------------------------------------
+
+// --- Functions ------------------------------------------------------------
+
+// --- Callbacks ------------------------------------------------------------
+
+// --- Event Handlers -------------------------------------------------------
+
+THREADSAFE CHANGE From_Simpl
+{
+	INTEGER i;
+	INTEGER cks;
+	
+	cks = 0;
+	
+	For (i = 2 To Len(From_Simpl))
+	{
+		cks = cks + Byte(From_Simpl, i);
+	}
+	
+	To_Device = From_Simpl + Chr(cks);
+}
+
+// --- Main() ---------------------------------------------------------------
+
+Function Main()
+{
+    WaitForInitializationComplete();
+}

@@ -1,0 +1,217 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+  (Fill in comments below)
+*******************************************************************************************/
+/*
+Dealer Name:
+System Name:
+System Number:
+Programmer:
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+  (Uncomment and declare compiler directives as needed)
+*******************************************************************************************/
+// #ENABLE_DYNAMIC
+// #SYMBOL_NAME ""
+// #HINT ""
+// #DEFINE_CONSTANT
+// #CATEGORY "" 
+// #PRINT_TO_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+// #OUTPUT_SHIFT 
+// #HELP_PDF_FILE ""
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #ENCODING_ASCII
+// #ENCODING_UTF16
+// #ENCODING_INHERIT_FROM_PARENT
+// #ENCODING_INHERIT_FROM_PROGRAM
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+  (Uncomment and declare inputs and outputs as needed)
+*******************************************************************************************/
+DIGITAL_INPUT Refresh, First_Page, Previous_Page, Next_Page;
+ANALOG_INPUT Total_Rows;
+DIGITAL_INPUT Select[25];
+STRING_INPUT Names$[255][100];
+// BUFFER_INPUT 
+
+// DIGITAL_OUTPUT 
+ANALOG_OUTPUT Current_Page, Total_Pages, Selection;
+STRING_OUTPUT Entry_Name$[25];
+
+/*******************************************************************************************
+  Parameters
+  (Uncomment and declare parameters as needed)
+*******************************************************************************************/
+INTEGER_PARAMETER Entries_Per_Page;
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+// STRING_PARAMETER
+
+/*******************************************************************************************
+  Global Variables
+  (Uncomment and declare global variables as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: myString = "";
+*******************************************************************************************/
+INTEGER nPage, nTotalPages;
+STRING sName[255][100];
+
+/*******************************************************************************************
+  Functions
+  (Add any additional functions here)
+  Note:  Functions must be physically placed before the location in
+         the code that calls them.
+*******************************************************************************************/
+
+Function Paginate()
+{
+	INTEGER i, j;
+	
+	// Which entry do we start on?
+	i = (nPage - 1) * Entries_Per_Page;
+	
+	// Loop over one page of names
+	For (j = 1 To Entries_Per_Page)
+	{
+		// Hit the last one?
+		If (i + j > Total_Rows)
+		{
+			Entry_Name$[j] = "";
+		}
+		Else
+		{
+			Entry_Name$[j] = sName[i + j];
+		}
+	}
+}
+
+/*******************************************************************************************
+  Event Handlers
+  (Uncomment and declare additional event handlers as needed)
+*******************************************************************************************/
+
+CHANGE Names$
+{
+	INTEGER i, j;
+	
+	// Which name changed?
+	i = GetLastModifiedArrayIndex();
+	
+	// Save it
+	sName[i] = Names$[i];
+}
+
+CHANGE Total_Rows
+{
+	// Go back to the first page
+	nPage = 1;
+	Current_Page = nPage;
+	
+	// How many pages do we have now?
+	nTotalPages = (Total_Rows / Entries_Per_Page);
+	
+	IF (Total_Rows % Entries_Per_Page > 0)
+	{
+		nTotalPages = nTotalPages + 1;
+	}
+	
+	Total_Pages = nTotalPages;
+	
+	// Nothing selected now
+	Selection = 0;
+	Paginate();
+}
+
+PUSH Refresh
+{
+	Paginate();
+}
+
+PUSH First_Page
+{
+	// Go back to the first page
+	nPage = 1;
+	Current_Page = nPage;
+	
+	// Nothing selected now
+	Selection = 0;	
+	Paginate();
+}
+
+PUSH Previous_Page
+{
+	// Can we go back?
+	IF (nPage > 1)
+	{
+		nPage = nPage - 1;
+		Current_Page = nPage;
+		
+		// Nothing selected now
+		Selection = 0;
+		Paginate();
+	}
+}
+
+PUSH Next_Page
+{
+	// Can we go forward?
+	IF (nPage < nTotalPages)
+	{
+		nPage = nPage + 1;
+		Current_Page = nPage;
+		
+		// Nothing selected now
+		Selection = 0;
+		Paginate();
+	}
+}
+
+PUSH Select
+{
+	INTEGER i, k;
+	
+	i = GetLastModifiedArrayIndex();
+	
+	// What is the base index for this page we're on?
+	k = (nPage - 1) * Entries_Per_Page;
+	
+	If ((k + i) <= Total_Rows)
+	{
+		Selection = k + i;
+	}
+}
+
+/*******************************************************************************************
+  Main()
+  Uncomment and place one-time startup code here
+  (This code will get called when the system starts up)
+*******************************************************************************************/
+/*
+Function Main()
+{
+    // TODO:  Add code here
+    // Initialize declared global and local variables/arrays as needed.
+
+    // WaitForInitializationComplete();
+    // If you are reading any Input or Output variables, uncomment
+    //   the WaitForInitializationComplete statement above and read
+    //   them afterwards.  Input/Output variables will not have
+    //   their correct values set until after the logic processor
+    //   runs and propagates the values to them.
+}
+*/
+

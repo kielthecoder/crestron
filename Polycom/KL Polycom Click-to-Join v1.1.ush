@@ -1,0 +1,105 @@
+[BEGIN]
+  Version=1
+[END]
+[BEGIN]
+  ObjTp=FSgntr
+  Sgntr=UserSPlus
+  RelVrs=1
+  IntStrVrs=1
+  SPlusVrs=4.04.01
+  CrossCplrVrs=1.3
+[END]
+[BEGIN]
+  ObjTp=Hd
+[END]
+[BEGIN]
+  ObjTp=Symbol
+  Exclusions=1,19,20,21,88,89,167,168,179,213,214,215,216,217,225,226,248,249,266,267,310,718,756,854,
+  Exclusions_CDS=5
+  Inclusions_CDS=6
+  Name=KL Polycom Click-to-Join v1.1
+  SmplCName=KL Polycom Click-to-Join v1.1.usp
+  Code=1
+  SysRev5=4.006
+  SMWRev=3.00.00
+  InputCue1=Update
+  InputSigType1=Digital
+  InputCue2=Dial
+  InputSigType2=Digital
+  InputCue3=Clear
+  InputSigType3=Digital
+  InputCue4=Select_Meeting[#]
+  InputSigType4=Digital
+  OutputCue1=Update_Busy_Fb
+  OutputSigType1=Digital
+  OutputCue2=Selected_Meeting_Can_Dial
+  OutputSigType2=Digital
+  OutputCue3=Scheduled_Meeting_Reminder
+  OutputSigType3=Digital
+  OutputCue4=Select_Meeting_Fb[#]
+  OutputSigType4=Digital
+  InputList2Cue1=From_Device
+  InputList2SigType1=Serial
+  OutputList2Cue1=Number_Of_Meetings
+  OutputList2SigType1=Analog
+  OutputList2Cue2=To_Device
+  OutputList2SigType2=Serial
+  OutputList2Cue3=Selected_Meeting_Subject
+  OutputList2SigType3=Serial
+  OutputList2Cue4=Selected_Meeting_Organizer
+  OutputList2SigType4=Serial
+  OutputList2Cue5=Selected_Meeting_Location
+  OutputList2SigType5=Serial
+  OutputList2Cue6=Selected_Meeting_StartTime
+  OutputList2SigType6=Serial
+  OutputList2Cue7=Selected_Meeting_EndTime
+  OutputList2SigType7=Serial
+  OutputList2Cue8=Selected_Meeting_DialString
+  OutputList2SigType8=Serial
+  OutputList2Cue9=Selected_Meeting_Password
+  OutputList2SigType9=Serial
+  OutputList2Cue10=Meeting_Subject[#]
+  OutputList2SigType10=Serial
+  ParamCue1=[Reference Name]
+  MinVariableInputs=4
+  MaxVariableInputs=13
+  MinVariableInputsList2=1
+  MaxVariableInputsList2=1
+  MinVariableOutputs=4
+  MaxVariableOutputs=13
+  MinVariableOutputsList2=10
+  MaxVariableOutputsList2=19
+  MinVariableParams=0
+  MaxVariableParams=0
+  Expand=expand_separately
+  Expand2=expand_separately
+  ProgramTree=Logic
+  SymbolTree=32
+  Hint=
+  PdfHelp=
+  HelpID= 
+  Render=4
+  Smpl-C=16
+  CompilerCode=-48
+  CompilerParamCode=27
+  CompilerParamCode5=14
+  NumFixedParams=1
+  Pp1=1
+  MPp=1
+  NVStorage=10
+  ParamSigType1=String
+  SmplCInputCue1=o#
+  SmplCOutputCue1=i#
+  SmplCInputList2Cue1=an#
+  SmplCOutputList2Cue1=ai#
+  SPlus2CompiledName=S2_KL_Polycom_Click_to_Join_v1_1
+  SymJam=NonExclusive
+  FileName=KL Polycom Click-to-Join v1.1.ush
+  SIMPLPlusModuleEncoding=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=1
+  Tp=1
+  NoS=False
+[END]

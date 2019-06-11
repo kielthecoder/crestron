@@ -1,0 +1,384 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+  (Fill in comments below)
+*******************************************************************************************/
+/*
+Dealer Name:
+System Name:
+System Number:
+Programmer:
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+  (Uncomment and declare compiler directives as needed)
+*******************************************************************************************/
+// #ENABLE_DYNAMIC
+// #SYMBOL_NAME ""
+// #HINT ""
+// #DEFINE_CONSTANT
+#DEFINE_CONSTANT ciMAXENTRIES    7
+
+#DEFINE_CONSTANT csCR            "\x0D"
+#DEFINE_CONSTANT csCRLF          "\x0D\x0A"
+#DEFINE_CONSTANT csGLOBALADDRESS "GLOBALDIR "
+// #CATEGORY "" 
+// #PRINT_TO_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+// #OUTPUT_SHIFT 
+// #HELP_PDF_FILE ""
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #ENCODING_ASCII
+// #ENCODING_UTF16
+// #ENCODING_INHERIT_FROM_PARENT
+// #ENCODING_INHERIT_FROM_PROGRAM
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+/*******************************************************************************************
+  Include Libraries
+  (Uncomment and include additional libraries as needed)
+*******************************************************************************************/
+// #CRESTRON_LIBRARY ""
+// #USER_LIBRARY ""
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+  (Uncomment and declare inputs and outputs as needed)
+*******************************************************************************************/
+DIGITAL_INPUT  Global_Search, Global_Addressbook_Dial;
+ANALOG_INPUT   Global_Address_Book_Entry_Select_Value_In;
+STRING_INPUT   Global_Addressbook_Search_String_In[25];
+BUFFER_INPUT   From_Device[20000];
+
+DIGITAL_OUTPUT Global_Addressbook_Search_Active;
+ANALOG_OUTPUT  Selected_Global_Address_Book_Entry_Value;
+STRING_OUTPUT  To_Device, Get_Address_Book_Status_Text;
+
+STRING_OUTPUT  Global_Address_Book_Name_Text[ciMAXENTRIES];
+
+/*******************************************************************************************
+  SOCKETS
+  (Uncomment and define socket definitions as needed)
+*******************************************************************************************/
+// TCP_CLIENT
+// TCP_SERVER
+// UDP_SOCKET
+
+/*******************************************************************************************
+  Parameters
+  (Uncomment and declare parameters as needed)
+*******************************************************************************************/
+// INTEGER_PARAMETER
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+// STRING_PARAMETER
+
+/*******************************************************************************************
+  Parameter Properties
+  (Uncomment and declare parameter properties as needed)
+*******************************************************************************************/
+/*
+#BEGIN_PARAMETER_PROPERTIES parameter_variable, parameter_variable, ...
+   // propValidUnits = // unitString or unitDecimal|unitHex|unitPercent|unitCharacter|unitTime|unitTicks;
+   // propDefaultUnit = // unitString, unitDecimal, unitHex, unitPercent, unitCharacter, unitTime or unitTicks;
+   // propBounds = lower_bound , upper_bound;
+   // propDefaultValue = ;  // or, propDefaultValue = "";
+   // propList = // { "value" , "label" } , { "value" , "label" } , ... ;
+   // propShortDescription = "status_bar_hint_text";
+   // #BEGIN_PROP_FULL_DESCRIPTION  line_1...  line_2...  line_n  #END_PROP_FULL_DESCRIPTION
+   // #BEGIN_PROP_NOTES line_1...  line_2...  line_n  #END_PROP_NOTES
+#END_PARAMETER_PROPERTIES
+*/
+
+/*******************************************************************************************
+  Structure Definitions
+  (Uncomment and define structure definitions as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: struct.myString = "";
+*******************************************************************************************/
+/*
+STRUCTURE MyStruct1
+{
+};
+
+MyStruct1 struct;
+*/
+
+STRUCTURE GlobalDirEntry
+{
+	STRING sName[200];
+	STRING sURI[200];
+};
+
+GlobalDirEntry GlobalDirectory[ciMAXENTRIES];
+
+/*******************************************************************************************
+  Global Variables
+  (Uncomment and declare global variables as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: myString = "";
+*******************************************************************************************/
+INTEGER bGetAddressBookBusy;
+// LONG_INTEGER
+// SIGNED_INTEGER
+// SIGNED_LONG_INTEGER
+STRING  sCommandSent[250], sGlobalSearchText[25];
+
+/*******************************************************************************************
+  Functions
+  (Add any additional functions here)
+  Note:  Functions must be physically placed before the location in
+         the code that calls them.
+*******************************************************************************************/
+
+Function fGetAddressBookTimeOut()
+{
+	Wait(3000, wGetAddressBookTimeOut)
+	{
+		bGetAddressBookBusy = 0;
+		Global_Addressbook_Search_Active = bGetAddressBookBusy;
+		Get_Address_Book_Status_Text = "Address Book Failed";
+	}
+}
+
+Function ClearGlobalAddressBook()
+{
+	INTEGER i;
+	
+	For (i = 1 To ciMAXENTRIES)
+	{
+		GlobalDirectory[i].sName = "";
+		GlobalDirectory[i].sURI = "";
+	}
+}
+
+Function DisplayGlobalAddressBook()
+{
+	INTEGER i;
+	
+	For (i = 1 To ciMAXENTRIES)
+	{
+		Global_Address_Book_Name_Text[i] = GlobalDirectory[i].sName;
+	}
+}
+
+String_Function sfProcessGlobalDirFeedback(STRING fsTemp)
+{
+	INTEGER i, eiTemp, eiTemp1, eiTemp2;
+	STRING  esTempSend[250];
+	
+	Trace("in sfProcessGlobalDirFeedback: %s", fsTemp);
+	
+	// globaldir 0. Arnold.Joe:Joe.Arnold@SunTrust.com:site
+	// globaldir 1. Asensi.Emilou Joe:Joe.Asensi@SunTrust.com:site
+	// ...
+	// globaldir joe 7 done
+	esTempSend = "";
+	
+	If (Right(fsTemp, 4) = "done")
+	{
+		DisplayGlobalAddressBook();
+
+		bGetAddressBookBusy = 0;
+		Global_Addressbook_Search_Active = bGetAddressBookBusy;
+		Get_Address_Book_Status_Text = "Address Book Done";		
+	}
+	Else
+	{
+		// Parse out index
+		i = AtoI(fsTemp);
+		i = i + 1;
+		
+		// Parse out name
+		eiTemp1 = Find(".", fsTemp);
+		eiTemp2 = Find(":", fsTemp, eiTemp1 + 1);
+		
+		GlobalDirectory[i].sName = Mid(fsTemp, eiTemp1 + 2, eiTemp2 - eiTemp1 - 2);
+		
+		// Parse out number
+		eiTemp1 = Find(":", fsTemp, eiTemp2 + 1);
+			
+		GlobalDirectory[i].sURI = Mid(fsTemp, eiTemp2 + 1, eiTemp1 - eiTemp2 - 1);
+		
+		fGetAddressBookTimeOut();
+	}
+	
+	Return(esTempSend);
+}
+
+String_Function sfProcessFeedback(STRING fsTemp)
+{
+	STRING esTempCommand[100], esTempSend[250];
+	INTEGER	eiTemp, eiTemp1, eiTemp2;
+	SIGNED_INTEGER esiTempVolume;
+
+	eiTemp = 0;
+	eiTemp1 = 0;
+	eiTemp2 = 0;
+	esiTempVolume = 999;
+	esTempCommand = "";
+	esTempSend = "";
+	
+	Trace("in sfProcessFeedback: %s", fsTemp);
+
+	//Find the first space
+	eiTemp2 = byte(fsTemp, 1);
+	while((len(fsTemp) > 0) && ((eiTemp2 < 0x20) || (eiTemp2 > 0x7E)))
+	{
+		eiTemp2 = getc(fsTemp);
+		if(len(fsTemp) > 0)
+		{
+			eiTemp2 = byte(fsTemp, 1);
+		}
+	}
+	eiTemp = find("\x20", fsTemp);
+	eiTemp1 = find(":", fsTemp);
+	fsTemp = left(fsTemp, len(fsTemp) - 2);
+	
+	If((eiTemp > 0) || (eiTemp1 > 0))
+	{
+		//If the colon is first remove up to the colon
+		if((eiTemp > 0) && (eiTemp1 > 0) && (eiTemp > eiTemp1))
+		{
+			esTempCommand = upper(mid(fsTemp, 1, eiTemp1));
+		}
+		//else if there is no colon remove up to the space
+		else if((eiTemp > 0) && (eiTemp1 = 0))
+		{
+			esTempCommand = upper(mid(fsTemp, 1, eiTemp));
+		}
+		//else if there is no space remove up to the colon
+		else if((eiTemp = 0) && (eiTemp1 > 0))
+		{
+			esTempCommand = upper(mid(fsTemp, 1, eiTemp1));
+		}
+		//else if the space is first remove up to the space
+		else if((eiTemp > 0) && (eiTemp1 > 0) && (eiTemp < eiTemp1))
+		{
+			esTempCommand = upper(mid(fsTemp, 1, eiTemp));
+		}
+
+		Switch(1)
+		{
+			case(esTempCommand = csGLOBALADDRESS):
+			{
+				CancelWait(wGetAddressBookTimeOut);
+				//PolycomGlobalPhoneBook.fromDevice(fsTemp);
+				esTempSend = sfProcessGlobalDirFeedback(fsTemp);
+			}
+		}
+	}
+	
+	return(esTempSend);
+}
+
+/*******************************************************************************************
+  Event Handlers
+  (Uncomment and declare additional event handlers as needed)
+*******************************************************************************************/
+
+RELEASE Global_Search
+{	
+	If (bGetAddressBookBusy = 0)
+	{
+		// Make sure we have at least 3 characters to search on, shorter searches
+		// were crashing the codec.
+		If (Len(Global_Addressbook_Search_String_In) > 2)
+		{
+			bGetAddressBookBusy = 1;
+			Global_Addressbook_Search_Active = bGetAddressBookBusy;
+			sGlobalSearchText = Global_Addressbook_Search_String_In;
+		
+			//PolycomGlobalPhoneBook.startSearch(Global_Addressbook_Search_String_In);
+			ClearGlobalAddressBook();
+			fGetAddressBookTimeOut();
+			
+			MakeString(To_Device, "globaldir \x22%s\x22 %d%s", sGlobalSearchText, ciMAXENTRIES, csCRLF);
+		}
+		
+		If (Len(Global_Addressbook_Search_String_In) = 0)
+		{
+			//PolycomGlobalPhoneBook.clearSearch();
+			ClearGlobalAddressBook();
+			DisplayGlobalAddressBook();
+			
+			bGetAddressBookBusy = 0;
+			Global_Addressbook_Search_Active = bGetAddressBookBusy;
+		}
+	}
+}
+
+PUSH Global_Addressbook_Dial
+{
+	If (Global_Address_Book_Entry_Select_Value_In > 0)
+	{
+		If (Len(GlobalDirectory[Global_Address_Book_Entry_Select_Value_In].sURI) > 0)
+		{
+			MakeString(To_Device, "dial addressbook_entry %s%s", GlobalDirectory[Global_Address_Book_Entry_Select_Value_In].sURI, csCRLF);
+		}
+	}
+}
+
+THREADSAFE CHANGE From_Device
+{
+	STRING esTemp[500], esTempSend[250];
+
+	Try
+	{
+		While(1)
+		{
+			esTemp = Gather(csCRLF, From_Device);
+			esTempSend = sfProcessFeedback(esTemp);
+			Trace("in From_Device: esTempSend = %s;", esTempSend);
+			
+			If (Len(esTempSend) > 0)
+			{
+				If(sCommandSent <> esTempSend)
+				{
+					sCommandSent = esTempSend;
+				}
+				
+				If(Find(csGLOBALADDRESS, Upper(esTempSend)) > 0)
+				{
+					fGetAddressBookTimeOut();
+				}
+				
+				To_Device = esTempSend;
+			}
+		}
+	}
+	Catch
+	{
+		GenerateUserNotice("Error KL Polycom Globaldir Processor.usp: %s", GetExceptionMessage());
+	}
+}
+
+/*******************************************************************************************
+  Main()
+  Uncomment and place one-time startup code here
+  (This code will get called when the system starts up)
+*******************************************************************************************/
+
+Function Main()
+{
+    // TODO:  Add code here
+    // Initialize declared global and local variables/arrays as needed.
+
+    WaitForInitializationComplete();
+    // If you are reading any Input or Output variables, uncomment
+    //   the WaitForInitializationComplete statement above and read
+    //   them afterwards.  Input/Output variables will not have
+    //   their correct values set until after the logic processor
+    //   runs and propagates the values to them.
+}
+
+
