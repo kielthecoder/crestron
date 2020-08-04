@@ -1,0 +1,38 @@
+# Archives
+*_archive.zip
+*_compiled.zip
+
+# Output files
+*.ASV
+*.arcv
+*.bin
+*.cdm
+*.ch5z
+*.lpz
+*.sig
+*.sm2
+*.smft
+*.spz
+*.um2
+*.vtz
+*.hash
+
+# SmartGraphics files
+*.ced
+*.sgd
+*.sgd_
+*.sgd2
+*.bak
+
+# Project databases
+ProjDabs.ldb
+ProjDabs.mdb
+
+# SIMPL+ build
+SPlsWork/
+
+# XPanel
+*.xexe/
+*.xweb/
+*.prj/
+*.c3prj/
