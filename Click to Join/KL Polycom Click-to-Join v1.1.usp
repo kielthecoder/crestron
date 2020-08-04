@@ -1,0 +1,603 @@
+/*******************************************************************************************
+  SIMPL+ Module Information
+  (Fill in comments below)
+*******************************************************************************************/
+/*
+Dealer Name:
+System Name:
+System Number:
+Programmer: Kiel Lofstrand
+Comments:
+*/
+
+/*******************************************************************************************
+  Compiler Directives
+  (Uncomment and declare compiler directives as needed)
+*******************************************************************************************/
+// #ENABLE_DYNAMIC
+// #SYMBOL_NAME ""
+// #HINT ""
+#DEFINE_CONSTANT MAX_MEETINGS 10
+// #CATEGORY "" 
+// #PRINT_TO_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+// #OUTPUT_SHIFT 
+// #HELP_PDF_FILE ""
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #ENCODING_ASCII
+// #ENCODING_UTF16
+// #ENCODING_INHERIT_FROM_PARENT
+// #ENCODING_INHERIT_FROM_PROGRAM
+
+/*******************************************************************************************
+  DIGITAL, ANALOG and SERIAL INPUTS and OUTPUTS
+  (Uncomment and declare inputs and outputs as needed)
+*******************************************************************************************/
+DIGITAL_INPUT  Update, Dial, Clear;
+DIGITAL_INPUT  Select_Meeting[MAX_MEETINGS];
+// ANALOG_INPUT 
+// STRING_INPUT 
+BUFFER_INPUT   From_Device[10000];
+
+DIGITAL_OUTPUT Update_Busy_Fb, Selected_Meeting_Can_Dial, Scheduled_Meeting_Reminder;
+ANALOG_OUTPUT  Number_Of_Meetings;
+STRING_OUTPUT  To_Device;
+STRING_OUTPUT  Selected_Meeting_Subject, Selected_Meeting_Organizer, Selected_Meeting_Location;
+STRING_OUTPUT  Selected_Meeting_StartTime, Selected_Meeting_EndTime;
+STRING_OUTPUT  Selected_Meeting_DialString, Selected_Meeting_Password;
+DIGITAL_OUTPUT Select_Meeting_Fb[MAX_MEETINGS];
+STRING_OUTPUT  Meeting_Subject[MAX_MEETINGS];
+
+/*******************************************************************************************
+  Structure Definitions
+  (Uncomment and define structure definitions as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: struct.myString = "";
+*******************************************************************************************/
+
+STRUCTURE CalendarMeetings
+{
+	INTEGER iEnabled;
+	STRING  sID[255];
+	STRING  sStartTime[50];
+	STRING  sEndTime[50];
+	STRING  sSubject[255];
+	STRING  sOrganizer[255];
+	STRING  sLocation[255];
+	STRING  sDialSIP[255];
+	STRING  sDialH323[255];
+	STRING  sDialAudio[255];
+	STRING  sPassword[255];
+};
+
+CalendarMeetings OneTouchMeeting[MAX_MEETINGS];
+
+/*******************************************************************************************
+  Global Variables
+  (Uncomment and declare global variables as needed)
+  Note:  Be sure to initialize all declared STRING variables as needed
+         For example, in Function Main: myString = "";
+*******************************************************************************************/
+INTEGER fUpdateBusy, fProcessCalendarList, fProcessMeetingDetail;
+INTEGER fWaitForNotifyDone, fWaitForCalendarMeetingsDone, fWaitForMeetingInfoDone;
+INTEGER iMeetingIndex, iMeetingCount;
+INTEGER iSelectedMeeting;
+
+/*******************************************************************************************
+  Functions
+  (Add any additional functions here)
+  Note:  Functions must be physically placed before the location in
+         the code that calls them.
+*******************************************************************************************/
+
+String_Function Trim (STRING text)
+{
+	INTEGER i, j;
+	
+	For (i = 1 To Len(text))
+	{
+		If (Byte(text, i) > 32)
+			Break;
+	}
+	
+	For (j = Len(text) To i Step -1)
+	{
+		If (Byte(text, j) > 32)
+			Break;
+	}
+	
+	Return(Mid(text, i, j - i + 1));
+}
+
+Function ResetMeetings ()
+{
+	INTEGER i;
+	
+	For (i = 1 To MAX_MEETINGS)
+	{
+		OneTouchMeeting[i].iEnabled = 0;
+		OneTouchMeeting[i].sID = "";
+		OneTouchMeeting[i].sStartTime = "";
+		OneTouchMeeting[i].sEndTime = "";
+		OneTouchMeeting[i].sSubject = "";
+		OneTouchMeeting[i].sOrganizer = "";
+		OneTouchMeeting[i].sLocation = "";
+		OneTouchMeeting[i].sDialSIP = "";
+		OneTouchMeeting[i].sDialH323 = "";
+		OneTouchMeeting[i].sDialAudio = "";
+		OneTouchMeeting[i].sPassword = "";
+	}
+	
+	iMeetingCount = 0;
+}
+
+Function UpdateFeedback ()
+{
+	INTEGER i, count;
+	
+	count = 0;
+	
+	For (i = 1 To MAX_MEETINGS)
+	{
+		If (OneTouchMeeting[i].iEnabled)
+		{
+			Meeting_Subject[i] = OneTouchMeeting[i].sSubject;
+			count = count + 1;
+		}
+		Else
+			Meeting_Subject[i] = "";
+	}
+	
+	Number_Of_Meetings = count;
+}
+
+Function UpdateSelectedMeetingFeedback ()
+{
+	INTEGER i;
+	
+	For (i = 1 To MAX_MEETINGS)
+	{
+		If (i = iSelectedMeeting)
+		{
+			Select_Meeting_Fb[i] = 1;
+		}
+		Else
+		{
+			Select_Meeting_Fb[i] = 0;
+		}
+	}	
+}
+
+Function UpdateSelectedMeetingDetails ()
+{
+	If (iSelectedMeeting > 0)
+	{
+		Selected_Meeting_Subject = OneTouchMeeting[iSelectedMeeting].sSubject;
+		Selected_Meeting_Organizer = OneTouchMeeting[iSelectedMeeting].sOrganizer;
+		Selected_Meeting_Location = OneTouchMeeting[iSelectedMeeting].sLocation;
+		Selected_Meeting_StartTime = OneTouchMeeting[iSelectedMeeting].sStartTime;
+		Selected_Meeting_EndTime = OneTouchMeeting[iSelectedMeeting].sEndTime;
+		Selected_Meeting_Password = OneTouchMeeting[iSelectedMeeting].sPassword;
+		
+		If (OneTouchMeeting[iSelectedMeeting].sDialSIP <> "")
+		{
+			Selected_Meeting_DialString = OneTouchMeeting[iSelectedMeeting].sDialSIP;
+  			Selected_Meeting_Can_Dial = 1;
+		}
+		Else If (OneTouchMeeting[iSelectedMeeting].sDialH323 <> "")
+		{
+			Selected_Meeting_DialString = OneTouchMeeting[iSelectedMeeting].sDialH323;
+  			Selected_Meeting_Can_Dial = 1;
+		}
+		Else If (OneTouchMeeting[iSelectedMeeting].sDialAudio <> "")
+		{
+			Selected_Meeting_DialString = OneTouchMeeting[iSelectedMeeting].sDialAudio;
+  			Selected_Meeting_Can_Dial = 1;
+		}
+		Else
+		{
+			Selected_Meeting_DialString = "";
+  			Selected_Meeting_Can_Dial = 0;
+		}
+	}
+	Else
+	{
+		Selected_Meeting_Subject = "";
+		Selected_Meeting_Organizer = "";
+		Selected_Meeting_Location = "";
+		Selected_Meeting_StartTime = "";
+		Selected_Meeting_EndTime = "";
+		Selected_Meeting_Password = "";
+		Selected_Meeting_DialString = "";
+		Selected_Meeting_Can_Dial = 0;
+	}
+}
+
+Function DialMeeting (INTEGER index)
+{
+	If (index <= iMeetingCount)
+	{
+		If (OneTouchMeeting[index].iEnabled)
+		{
+			If (OneTouchMeeting[index].sDialSIP <> "")
+			{
+				MakeString(To_Device, "dial manual 6144 \x22%s\x22 sip\r", OneTouchMeeting[index].sDialSIP);
+			}
+			Else If (OneTouchMeeting[index].sDialH323 <> "")
+			{
+				MakeString(To_Device, "dial manual 6144 \x22%s\x22 h323\r", OneTouchMeeting[index].sDialH323);
+			}
+			Else If (OneTouchMeeting[index].sDialAudio <> "")
+			{
+				MakeString(To_Device, "dial phone auto \x22%s\x22\r", OneTouchMeeting[index].sDialAudio);
+			}
+			Else
+			{
+				Trace("DialMeeting: no method to dial meeting!");
+			}
+		}
+	}	
+}
+
+String_Function Convert24to12 (STRING sTime)
+{
+	STRING sNewTime[30];
+	INTEGER nYear, nMonth, nDay, nHour, nMinute;
+	STRING sAMPM[5], sTemp[5];
+	
+	// Break apart date/time
+	nYear = AtoI(sTime);
+	sTemp = Remove("-", sTime);
+	nMonth = AtoI(sTime);
+	sTemp = Remove("-", sTime);
+	nDay = AtoI(sTime);
+	sTemp = Remove(":", sTime);
+	nHour = AtoI(sTime);
+	sTemp = Remove(":", sTime);
+	nMinute = AtoI(sTime);
+	
+	// Convert hours to 12-hour
+	If (nHour > 12)
+	{
+		nHour = nHour - 12;
+		sAMPM = "PM";
+	}
+	Else If (nHour = 12)
+		sAMPM = "PM";
+	Else
+	{
+		If (nHour = 0)
+			nHour = 12;
+			
+		sAMPM = "AM";
+	}
+	
+	// Format the new time string
+	MakeString(sNewTime, "%d:%02d %s", nHour, nMinute, sAMPM);
+	Return(sNewTime);
+}
+                         
+Function ProcessCalendarMeeting (STRING text)
+{
+	STRING temp[512];
+	
+	Trace("Entering ProcessCalendarMeeting()...");
+	
+	// meeting|AAAaAEFsZXguTWFjRG9uYWxkQHBvbHljb20uY29tAVEACIjMne2/ndgARgAAAADr9GlhsSjWEZBcAAKzMphJBwA4wicbtr3UEZArAKAk09LtAAACZpKWAADe7hJleQIOS7j2mzRJxkLKAAADI/F8BAAA|2010-03-30:08:30|2010-03-30:09:00|Discuss Budget
+	If (Left(text, 8) = "meeting|")
+	{
+		temp = Remove("|", text);												// meeting|
+		Trace("...%s", temp);
+		temp = Remove("|", text);												// AAAaAEF...|
+		Trace("...%s", temp);
+		OneTouchMeeting[iMeetingIndex].sID = Left(temp, Len(temp) - 1);
+		temp = Remove("|", text);												// 2010-03-30:08:30|
+		Trace("...%s", temp);
+		OneTouchMeeting[iMeetingIndex].sStartTime = Convert24to12(Left(temp, Len(temp) - 1));
+		temp = Remove("|", text);												// 2010-03-30:09:00|
+		Trace("...%s", temp);
+		OneTouchMeeting[iMeetingIndex].sEndTime = Convert24to12(Left(temp, Len(temp) - 1));
+		Trace("...%s", text);
+		OneTouchMeeting[iMeetingIndex].sSubject = Left(text, Len(text) - 2);	// Discuss Budget\n
+		
+		OneTouchMeeting[iMeetingIndex].iEnabled = 1;
+		
+		iMeetingIndex = iMeetingIndex + 1;
+	}
+	
+	Trace("Leaving ProcessCalendarMeeting()");
+}
+
+Function ProcessMeetingDetail (STRING text)
+{
+	INTEGER i;
+	STRING  temp[512];
+	
+	Trace("Entering ProcessMeetingDetail()...");
+	Trace("   text=%s", text);
+	
+	// calendarmeetings info start
+	// id|AAAaAEFsZXguTWFjRG9uYWxkQHBvbHljb20uY29tAVEACIjMne2/ndgARgAAAADr9GlhsS
+	//    jWEZBcAAKzMphJBwA4wicbtr3UEZArAKAk09LtAAACZpKWAADe7hJleQIOS7j2mzRJxkLKAAA
+	//    DI/G8AAAQ
+	// 2010-03-30:08:30|2010-03-30:09:00|dialable|public
+	// organizer|Russell Bell
+	// location|Russell's RMX Meeting Room - IP Video Number: 123456 (if
+	//          registered to corp GK); 888-123-4567/978-123-4567 with passcode: #760900
+	// subject|Bug Scrub
+	// dialingnumber|video|733397@vsgwstdma01.r13.vsg.local2|sip
+	// dialingnumber|video|733397|h323
+	// dialingnumber|audio|48527
+	// meetingpassword|none
+	// attendee|Russell Bell
+	// attendee|Rebecca Sharp
+	// calendarmeetings info end
+	
+	If (Left(text, 3) = "id|")
+	{
+		temp = Remove("id|", text);
+		temp = Trim(text);
+		
+		iMeetingIndex = 0;
+		
+		For (i = 1 To MAX_MEETINGS)
+		{
+			If (OneTouchMeeting[i].iEnabled)
+			{
+				If (OneTouchMeeting[i].sID = temp)
+				{
+					iMeetingIndex = i;
+					Break;
+				}
+			}
+		}
+	}
+	Else
+	{
+		If (iMeetingIndex > 0)
+		{
+			If (Left(text, 10) = "organizer|")
+			{
+				temp = Remove("organizer|", text);
+				Trace("  organizer = %s", text);
+				OneTouchMeeting[iMeetingIndex].sOrganizer = Trim(text);
+			}
+			Else If (Left(text, 9) = "location|")
+			{
+				temp = Remove("location|", text);
+				Trace("  location = %s", text);
+				OneTouchMeeting[iMeetingIndex].sLocation = Trim(text);
+			}
+			Else If (Left(text, 14) = "dialingnumber|")
+			{
+				temp = Remove("dialingnumber|", text);
+				Trace("  dialingnumber = %s", text);
+				
+				If (Left(text, 6) = "video|")
+				{
+					temp = Remove("video|", text);
+					Trace("    video = %s", text);
+					temp = Trim(text);
+					
+					If (Right(temp, 4) = "|sip")
+					{
+						OneTouchMeeting[iMeetingIndex].sDialSIP = Left(temp, Len(temp) - 4);
+					}
+					Else If (Right(temp, 5) = "|h323")
+					{
+						OneTouchMeeting[iMeetingIndex].sDialH323 = Left(temp, Len(temp) - 5);
+					}
+				}
+				Else If (Left(text, 6) = "audio|")
+				{
+					temp = Remove("audio|", text);
+					Trace("    audio = %s", text);
+					temp = Trim(text);
+
+					OneTouchMeeting[iMeetingIndex].sDialAudio = temp;
+				}
+			}
+			Else If (Left(text, 16) = "meetingpassword|")
+			{
+				temp = Remove("meetingpassword|", text);
+				Trace("  meetingpassword = %s", text);
+				temp = Trim(text);
+				
+				OneTouchMeeting[iMeetingIndex].sPassword = temp;
+			}
+		}
+	}
+
+	Trace("Leaving ProcessMeetingDetail()...");
+}
+
+Function ProcessMeetingReminder (STRING text)
+{
+	INTEGER i;
+	
+	For (i = 1 To MAX_MEETINGS)
+	{
+		If (OneTouchMeeting[i].iEnabled)
+		{
+			If (Find(OneTouchMeeting[i].sSubject, text))
+			{
+				iSelectedMeeting = i;
+				
+				UpdateSelectedMeetingFeedback();
+				UpdateSelectedMeetingDetails();
+				
+				Pulse(50, Scheduled_Meeting_Reminder);
+				Break;
+			}
+		}
+	}
+}
+
+/*******************************************************************************************
+  Event Handlers
+  (Uncomment and declare additional event handlers as needed)
+*******************************************************************************************/
+
+PUSH Update
+{
+	If (fUpdateBusy = 0)
+	{
+		fUpdateBusy = 1;
+		Update_Busy_Fb = fUpdateBusy;
+		
+		fWaitForNotifyDone = 1;
+		To_Device = "notify calendarmeetings\r";
+
+		Wait(1000, NotifyDoneTimeout)
+		{
+			fWaitForNotifyDone = 0;
+		}
+		
+		While (fWaitForNotifyDone)
+		{
+			Delay(10);
+		}
+
+		CancelWait(NotifyDoneTimeout);
+		
+		fWaitForCalendarMeetingsDone = 1;
+		To_Device = "calendarmeetings list today\r";
+
+		Wait(1000, CalendarMeetingsDoneTimeout)
+		{
+			fWaitForCalendarMeetingsDone = 0;
+		}
+		
+		While (fWaitForCalendarMeetingsDone)
+		{
+			Delay(10);
+		}
+		
+		UpdateFeedback();
+		Delay(50);
+		
+		fUpdateBusy = 0;
+		Update_Busy_Fb = fUpdateBusy;
+	}
+}
+
+PUSH Dial
+{
+	If (iSelectedMeeting > 0)
+	{
+		If (OneTouchMeeting[iSelectedMeeting].iEnabled)
+		{
+			DialMeeting(iSelectedMeeting);
+		}
+	}
+}
+
+PUSH Clear
+{
+	iSelectedMeeting = 0;
+	
+	UpdateSelectedMeetingFeedback();
+	UpdateSelectedMeetingDetails();
+}
+
+PUSH Select_Meeting
+{
+	INTEGER i;
+	
+	i = GetLastModifiedArrayIndex();
+	
+	If (OneTouchMeeting[i].iEnabled)
+	{
+		iSelectedMeeting = i;
+		UpdateSelectedMeetingFeedback();
+
+		fWaitForMeetingInfoDone = 1;
+		MakeString(To_Device, "calendarmeetings info %s\n", OneTouchMeeting[iSelectedMeeting].sID);
+		
+		While (fWaitForMeetingInfoDone)
+		{
+			Delay(10);
+		}
+		
+		UpdateSelectedMeetingDetails();
+	}
+}
+
+THREADSAFE CHANGE From_Device
+{
+	STRING text[512];
+	STRING temp[512];
+	
+	While (1)
+	{
+		text = Gather("\n", From_Device);
+
+		If (text = "notify calendarmeetings success\n")
+		{
+			fWaitForNotifyDone = 0;
+		}
+		Else If (text = "info: event/notification already active:calendarmeetings\n")
+		{
+			fWaitForNotifyDone = 0;
+		}
+		Else If (text = "calendarmeetings list begin\n")
+		{
+			ResetMeetings();
+			fProcessCalendarList = 1;
+			iMeetingIndex = 1;
+		}
+		Else If (text = "calendarmeetings list end\n")
+		{
+			iMeetingCount = iMeetingIndex - 1;
+			fProcessCalendarList = 0;
+			fWaitForCalendarMeetingsDone = 0;
+		}
+		Else If (text = "calendarmeetings info start\n")
+		{
+			fProcessMeetingDetail = 1;
+		}
+		Else If (text = "calendarmeetings info end\n")
+		{
+			fProcessMeetingDetail = 0;
+			fWaitForMeetingInfoDone = 0;
+		}
+		Else If (Find("popupinfo: question: Meeting Reminder:", text))
+		{
+			temp = Remove("popupinfo: question: Meeting Reminder:", text);
+			ProcessMeetingReminder(text);
+		}
+		Else If (fProcessCalendarList = 1)
+		{
+			If (iMeetingIndex <= MAX_MEETINGS)
+			{
+				ProcessCalendarMeeting(text);
+			}
+		}
+		Else If (fProcessMeetingDetail = 1)
+		{
+			If (iMeetingIndex <= MAX_MEETINGS)
+			{
+				ProcessMeetingDetail(text);
+			}
+		}
+	}
+}
+
+/*******************************************************************************************
+  Main()
+  Uncomment and place one-time startup code here
+  (This code will get called when the system starts up)
+*******************************************************************************************/
+
+Function Main()
+{
+	fUpdateBusy = 0;
+	fProcessCalendarList = 0;
+	fProcessMeetingDetail = 0;
+	
+    WaitForInitializationComplete();
+}
+
