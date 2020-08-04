@@ -1,0 +1,136 @@
+// New Module
+// v1.0
+//
+// Dealer:
+// System:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives ----------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+
+#DEFINE_CONSTANT MAX_STRLEN    50
+#DEFINE_CONSTANT MAX_DESTS     8
+#DEFINE_CONSTANT MAX_CODEC_INS 2
+#DEFINE_CONSTANT MAX_DM_INS    16
+#DEFINE_CONSTANT MAX_DM_OUTS   16
+
+// --- Libraries --------------------------------------------------------------
+
+// #USER_SIMPLSHARP_LIBRARY "<SIMPL# Library Name>"
+
+// --- Inputs -----------------------------------------------------------------
+
+DIGITAL_INPUT Enable;
+DIGITAL_INPUT Refresh;
+ANALOG_INPUT  Presentation_Destination[MAX_DESTS];
+ANALOG_INPUT  Video_Out_Fb[MAX_DM_OUTS];
+ANALOG_INPUT  Codec_Input[MAX_CODEC_INS];
+STRING_INPUT  Source_Name[MAX_DM_INS][MAX_STRLEN];
+
+// --- Outputs ----------------------------------------------------------------
+
+DIGITAL_OUTPUT Single_Source_Fb;
+DIGITAL_OUTPUT Multiple_Source_Fb;
+STRING_OUTPUT  Source_Name_Out;
+
+// --- Parameters -------------------------------------------------------------
+
+STRING_PARAMETER NoSourceName[MAX_STRLEN];
+
+// --- Sockets ----------------------------------------------------------------
+
+// --- Structures -------------------------------------------------------------
+
+// --- Global Variables -------------------------------------------------------
+
+INTEGER PresentationSource;
+
+// --- Functions --------------------------------------------------------------
+
+FUNCTION SingleOrMultipleSources ()
+{
+	INTEGER i;
+	INTEGER j;
+	INTEGER k;
+
+	PresentationSource = 0;
+
+	For (i = 1 To MAX_DESTS)
+	{
+		If (Presentation_Destination[i] > 0)
+		{	
+			k = 0;
+			
+			// Codec inputs do not count as presentation sources
+			For (j = 1 To MAX_CODEC_INS)
+			{
+				If (Codec_Input[j] > 0)
+				{					
+					If (Presentation_Destination[i] = Codec_Input[j])
+					{
+						k = Codec_Input[j];
+						Break;
+					}
+				}
+			}
+			
+			// Skip if we found a codec input
+			If (k = 0)
+			{
+				If (PresentationSource = 0)
+				{
+					PresentationSource = Video_Out_Fb[Presentation_Destination[i]];
+				}
+				Else
+				{
+					If (Video_Out_Fb[Presentation_Destination[i]] <> PresentationSource)
+					{
+						Single_Source_Fb = 0;
+						Multiple_Source_Fb = 1;
+						Source_Name_Out = "Multiple";
+						Return;
+					}
+				}
+			}
+		}
+	}
+
+	Multiple_Source_Fb = 0;
+
+	If (PresentationSource = 0)
+	{
+		Single_Source_Fb = 0;
+		Source_Name_Out = NoSourceName;
+	}
+	Else
+	{
+		Single_Source_Fb = 1;
+		Source_Name_Out = Source_Name[PresentationSource];
+	}
+}
+
+// --- Events -----------------------------------------------------------------
+
+PUSH Enable
+{
+	SingleOrMultipleSources();
+}
+
+PUSH Refresh
+{
+	If (Enable)
+	{
+		SingleOrMultipleSources();
+	}
+}
+
+// --- Main -------------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}

@@ -1,0 +1,138 @@
+// KL Passcode Driver
+// v1.0
+//
+// Dealer:
+// System:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives ----------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+
+#DEFINE_CONSTANT MAX_PASSCODE_LEN 10
+
+// --- Libraries --------------------------------------------------------------
+
+// #USER_SIMPLSHARP_LIBRARY "<SIMPL# Library Name>"
+
+// --- Inputs -----------------------------------------------------------------
+
+DIGITAL_INPUT Set_Passcode;
+DIGITAL_INPUT Key_Clear;
+DIGITAL_INPUT Key_Enter;
+STRING_INPUT  Admin_Passcode_In[MAX_PASSCODE_LEN];
+
+DIGITAL_INPUT Key_Pad[10];
+
+// --- Outputs ----------------------------------------------------------------
+
+DIGITAL_OUTPUT Passcode_Correct;
+DIGITAL_OUTPUT Passcode_Wrong;
+DIGITAL_OUTPUT Passcode_Saved;
+STRING_OUTPUT  Passcode_Entry;
+STRING_OUTPUT  Passcode_Masked;
+
+// --- Parameters -------------------------------------------------------------
+
+// INTEGER_PARAMETER
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+STRING_PARAMETER Backdoor_Passcode[MAX_PASSCODE_LEN];
+
+// --- Sockets ----------------------------------------------------------------
+
+// --- Structures -------------------------------------------------------------
+
+// --- Global Variables -------------------------------------------------------
+
+STRING Passcode[MAX_PASSCODE_LEN];
+
+// --- Functions --------------------------------------------------------------
+
+STRING_FUNCTION Mask(STRING text)
+{
+	STRING temp[MAX_PASSCODE_LEN];
+	INTEGER i;
+
+	temp = "";
+
+	For (i = 1 To Len(text))
+		temp = temp + "*";
+
+	Return(temp);
+}
+
+// --- Events -----------------------------------------------------------------
+
+PUSH Set_Passcode
+{
+	Passcode = Admin_Passcode_In;
+	Passcode_Entry = Passcode;
+	Passcode_Masked = Mask(Passcode);
+}
+
+RELEASE Set_Passcode
+{
+	Passcode = "";
+	Passcode_Entry = Passcode;
+	Passcode_Masked = Passcode;
+}
+
+PUSH Key_Pad
+{
+	INTEGER i;
+
+	If (Len(Passcode) < MAX_PASSCODE_LEN)
+	{
+		i = GetLastModifiedArrayIndex();
+
+		If (i = 10)
+			i = 0;
+
+		Passcode = Passcode + ItoA(i);
+		Passcode_Entry = Passcode;
+		Passcode_Masked = Mask(Passcode);
+	}
+}
+
+PUSH Key_Clear
+{
+	Passcode = "";
+	Passcode_Entry = Passcode;
+	Passcode_Masked = Passcode;
+}
+
+PUSH Key_Enter
+{
+	If (Set_Passcode)
+	{
+		Pulse(10, Passcode_Saved);
+	}
+	Else
+	{
+		If ((Passcode = Admin_Passcode_In) ||
+			(Passcode = Backdoor_Passcode))
+		{
+			Pulse(10, Passcode_Correct);
+		}
+		Else
+		{
+			Pulse(10, Passcode_Wrong);
+		}
+
+		Passcode = "";
+		Passcode_Entry = Passcode;
+		Passcode_Masked = Passcode;
+	}
+}
+
+// --- Main -------------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}

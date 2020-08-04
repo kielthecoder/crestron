@@ -1,0 +1,247 @@
+// KL Simple Text Config Driver
+// v1.1 - Added Error_Code output
+// v1.0 - Initial version
+//
+// Dealer:
+// System:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives ----------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+
+#DEFINE_CONSTANT MAX_FILE_NAME_LEN 255
+#DEFINE_CONSTANT MAX_READ_BUF_LEN  2048
+#DEFINE_CONSTANT MAX_TEXT_BUF_LEN  4096
+#DEFINE_CONSTANT MAX_LINE_LEN      270
+#DEFINE_CONSTANT MAX_STRLEN        255
+#DEFINE_CONSTANT MAX_NUM_JOINS     100
+
+// --- Libraries --------------------------------------------------------------
+
+// #USER_SIMPLSHARP_LIBRARY "<SIMPL# Library Name>"
+
+// --- Inputs -----------------------------------------------------------------
+
+DIGITAL_INPUT Store;
+DIGITAL_INPUT Recall;
+
+DIGITAL_INPUT Digital[MAX_NUM_JOINS];
+ANALOG_INPUT  Analog[MAX_NUM_JOINS];
+STRING_INPUT  Serial[MAX_NUM_JOINS][MAX_STRLEN];
+
+// --- Outputs ----------------------------------------------------------------
+
+DIGITAL_OUTPUT Initialized_Fb;
+DIGITAL_OUTPUT Error_Fb;
+ANALOG_OUTPUT  Error_Code;
+
+DIGITAL_OUTPUT Digital_Fb[MAX_NUM_JOINS];
+ANALOG_OUTPUT  Analog_Fb[MAX_NUM_JOINS];
+STRING_OUTPUT  Serial_Fb[MAX_NUM_JOINS];
+
+// --- Parameters -------------------------------------------------------------
+
+STRING_PARAMETER FileName[MAX_FILE_NAME_LEN];
+
+// --- Sockets ----------------------------------------------------------------
+
+// TCP_CLIENT
+// TCP_SERVER
+// UDP_SOCKET
+
+// --- Structures -------------------------------------------------------------
+
+// STRUCTURE MyStruct
+// {
+// };
+
+// --- Global Variables -------------------------------------------------------
+
+STRING ReadBuf[MAX_READ_BUF_LEN];
+STRING TextBuf[MAX_TEXT_BUF_LEN];
+
+// --- Functions --------------------------------------------------------------
+
+FUNCTION Parse(STRING text)
+{
+	INTEGER index;
+	INTEGER equals;
+	STRING temp[16];
+	STRING sig[1];
+	
+	equals = Find("=", text);
+	
+	If (equals > 0)
+	{
+		temp = Mid(text, 1, equals);
+		sig = Left(temp, 1);
+		index = AtoI(temp);
+		
+		If (sig = "D")
+			Digital_Fb[index] = AtoI(Mid(text, equals + 1, Len(text) - equals));
+		Else If (sig = "A")
+			Analog_Fb[index] = AtoI(Mid(text, equals + 1, Len(text) - equals));
+		Else If (sig = "S")
+			Serial_Fb[index] = Mid(text, equals + 1, Len(text) - equals);
+	}
+}
+
+// --- Events -----------------------------------------------------------------
+
+THREADSAFE PUSH Store
+{
+	SIGNED_INTEGER fileHandle;
+	SIGNED_INTEGER error;
+	INTEGER index;
+	STRING text[MAX_LINE_LEN];
+	
+	Error_Fb = 0;
+	
+	If (StartFileOperations() = 0)
+	{
+		fileHandle = FileOpen(FileName, _O_TEXT | _O_WRONLY | _O_TRUNC);
+
+		If (fileHandle < 0)
+			fileHandle = FileOpen(FileName, _O_TEXT | _O_WRONLY | _O_CREAT);
+		
+		If (fileHandle >= 0)
+		{
+			For (index = 1 To MAX_NUM_JOINS)
+			{
+				If (IsSignalDefined(Digital[index]))
+				{
+					MakeString(text, "D%d=%d\n", index, Digital[index]);
+					
+					error = FileWrite(fileHandle, text, Len(text));
+					
+					If (error < 0)
+					{
+						Error_Fb = 1;
+						Error_Code = error;
+					}
+				}
+			}
+
+			For (index = 1 To MAX_NUM_JOINS)
+			{
+				If (IsSignalDefined(Analog[index]))
+				{
+					MakeString(text, "A%d=%u\n", index, Analog[index]);
+					
+					error = FileWrite(fileHandle, text, Len(text));
+					
+					If (error < 0)
+					{
+						Error_Fb = 1;
+						Error_Code = error;
+					}
+				}
+			}
+			
+			For (index = 1 To MAX_NUM_JOINS)
+			{
+				If (IsSignalDefined(Analog[index]))
+				{
+					MakeString(text, "S%d=%s\n", index, Serial[index]);
+					
+					error = FileWrite(fileHandle, text, Len(text));
+					
+					If (error < 0)
+					{
+						Error_Fb = 1;
+						Error_Code = error;
+					}
+				}
+			}
+			
+			FileClose(fileHandle);
+		}
+		Else
+		{
+			Error_Fb = 1;
+			Error_Code = fileHandle;
+		}
+	
+		EndFileOperations();
+	}
+	Else
+	{
+		Error_Fb = 1;
+	}
+}
+
+THREADSAFE PUSH Recall
+{
+	SIGNED_INTEGER fileHandle;
+	SIGNED_INTEGER error;
+	STRING text[MAX_LINE_LEN];
+	
+	ReadBuf = "";
+	TextBuf = "";
+	Initialized_Fb = 0;
+	Error_Fb = 0;
+
+	If (StartFileOperations() = 0)
+	{
+		fileHandle = FileOpen(FileName, _O_TEXT | _O_RDONLY);
+		
+		If (fileHandle >= 0)
+		{
+			While (FileEOF(fileHandle) = 0)
+			{
+				error = FileRead(fileHandle, ReadBuf, MAX_READ_BUF_LEN);
+				
+				If (error < 0)
+				{
+					Error_Fb = 1;
+					Error_Code = error;
+					Break;
+				}
+				
+				TextBuf = TextBuf + ReadBuf;
+				
+				While (Find("\n", TextBuf) > 0)
+				{
+					text = Remove("\n", TextBuf);
+					Parse(Left(text, Len(text) - 2));
+				}
+			}
+			
+			While (Find("\n", TextBuf) > 0)
+			{
+				text = Remove("\n", TextBuf);
+				Parse(Left(text, Len(text) - 2));
+			}
+			
+			If (FileEOF(fileHandle) = 1)
+			{
+				Initialized_Fb = 1;
+				Error_Code = 0;
+			}
+		
+			FileClose(fileHandle);
+		}
+		Else
+		{
+			Error_Fb = 1;
+			Error_Code = fileHandle;
+		}
+	
+		EndFileOperations();
+	}
+	Else
+	{
+		Error_Fb = 1;
+	}
+}
+
+// --- Main -------------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
