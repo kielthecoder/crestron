@@ -1,0 +1,111 @@
+// New Module
+// v1.0
+//
+// Dealer:
+// System:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives ----------------------------------------------------
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+
+#DEFINE_CONSTANT MAX_DATA_LEN 50
+
+// --- Libraries --------------------------------------------------------------
+
+#USER_SIMPLSHARP_LIBRARY "SimplCrypto"
+
+// --- Inputs -----------------------------------------------------------------
+
+// DIGITAL_INPUT
+// ANALOG_INPUT
+STRING_INPUT  Data_In[MAX_DATA_LEN];
+// BUFFER_INPUT
+
+// --- Outputs ----------------------------------------------------------------
+
+// DIGITAL_OUTPUT
+// ANALOG_OUTPUT
+STRING_OUTPUT MD5_Out;
+
+// --- Parameters -------------------------------------------------------------
+
+// INTEGER_PARAMETER
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+// STRING_PARAMETER
+
+// --- Sockets ----------------------------------------------------------------
+
+// TCP_CLIENT
+// TCP_SERVER
+// UDP_SOCKET
+
+// --- Structures -------------------------------------------------------------
+
+// STRUCTURE MyStruct
+// {
+// };
+
+// --- Global Variables -------------------------------------------------------
+
+// INTEGER
+// LONG_INTEGER
+// SIGNED_INTEGER
+// SIGNED_LONG_INTEGER
+// STRING
+
+SimplMD5 MD5;
+
+// --- Functions --------------------------------------------------------------
+
+// FUNCTION MyFunc()
+// {
+// }
+
+// INTEGER_FUNCTION MyIntFunc()
+// {
+//     Return(0);
+// }
+
+// STRING_FUNCTION MyStrFunc()
+// {
+//     Return("");
+// }
+
+// --- Events -----------------------------------------------------------------
+
+// PUSH
+// RELEASE
+
+CHANGE Data_In
+{
+	MD5_Out = MD5.HexString(Data_In);
+}
+
+// EVENT
+// SOCKETCONNECT
+// SOCKETDISCONNECT
+// SOCKETSTATUS
+// SOCKETRECEIVE
+
+// THREADSAFE CHANGE From_Device
+// {
+// 	STRING temp[255];
+// 	
+// 	While (1)
+// 	{
+// 		temp = Gather("\n", From_Device);
+// 	}
+// }
+
+// --- Main -------------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
