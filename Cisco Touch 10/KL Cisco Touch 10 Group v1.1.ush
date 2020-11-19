@@ -1,0 +1,141 @@
+[BEGIN]
+  Version=1
+[END]
+[BEGIN]
+  ObjTp=FSgntr
+  Sgntr=UserSPlus
+  RelVrs=1
+  IntStrVrs=1
+  SPlusVrs=4.05.01
+  CrossCplrVrs=1.3
+[END]
+[BEGIN]
+  ObjTp=Hd
+[END]
+[BEGIN]
+  ObjTp=Symbol
+  Exclusions=1,19,20,21,88,89,167,168,179,213,214,215,216,217,225,226,248,249,266,267,310,718,756,854,
+  Exclusions_CDS=
+  Inclusions_CDS=5,6,7
+  Name=KL Cisco Touch 10 Group v1.1
+  SmplCName=KL Cisco Touch 10 Group v1.1.usp
+  Code=1
+  SysRev5=4.000
+  SMWRev=2.02.05
+  InputList2Cue1=Select_Fb
+  InputList2SigType1=Analog
+  InputList2Cue2=From_Processor
+  InputList2SigType2=Serial
+  OutputList2Cue1=Select
+  OutputList2SigType1=Analog
+  OutputList2Cue2=To_Processor
+  OutputList2SigType2=Serial
+  ParamCue1=[Reference Name]
+  ParamCue2=Widget_ID
+  ParamSigType2=String
+  ParamCue3=Item_ID[1]
+  ParamSigType3=String
+  ParamCue4=Item_ID[2]
+  ParamSigType4=String
+  ParamCue5=Item_ID[3]
+  ParamSigType5=String
+  ParamCue6=Item_ID[4]
+  ParamSigType6=String
+  ParamCue7=Item_ID[5]
+  ParamSigType7=String
+  MinVariableInputs=0
+  MaxVariableInputs=0
+  MinVariableInputsList2=2
+  MaxVariableInputsList2=2
+  MinVariableOutputs=0
+  MaxVariableOutputs=0
+  MinVariableOutputsList2=2
+  MaxVariableOutputsList2=2
+  MinVariableParams=2
+  MaxVariableParams=6
+  Expand=expand_separately
+  Expand2=expand_separately
+  ProgramTree=Logic
+  SymbolTree=32
+  Hint=
+  PdfHelp=
+  HelpID= 
+  Render=4
+  Smpl-C=16
+  CompilerCode=-48
+  CompilerParamCode=27
+  CompilerParamCode5=14
+  NumFixedParams=1
+  Pp1=1
+  Pp2=2
+  Pp3=3
+  Pp4=4
+  Pp5=5
+  Pp6=6
+  Pp7=7
+  MPp=7
+  NVStorage=10
+  ParamSigType1=String
+  SmplCInputCue1=o#
+  SmplCOutputCue1=i#
+  SmplCInputList2Cue1=an#
+  SmplCOutputList2Cue1=ai#
+  SPlus2CompiledName=S2_KL_Cisco_Touch_10_Group_v1_1
+  SymJam=NonExclusive
+  FileName=KL Cisco Touch 10 Group v1.1.ush
+  SIMPLPlusModuleEncoding=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=1
+  Tp=1
+  NoS=False
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=2
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=3
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=4
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=5
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=6
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]
+[BEGIN]
+  ObjTp=Dp
+  H=7
+  Tp=1
+  HD=False
+  NoS=False
+  VVS=0
+[END]

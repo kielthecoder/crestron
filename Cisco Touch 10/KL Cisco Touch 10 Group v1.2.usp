@@ -1,0 +1,111 @@
+// Dealer Name: ConvergeOne
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+// #CATEGORY "" 
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #PRINT_TO_TRACE
+
+#DEFINE_CONSTANT MAX_TEXT_LEN  200
+#DEFINE_CONSTANT MAX_ID_LEN    50
+#DEFINE_CONSTANT MAX_PARAM_LEN 50
+#DEFINE_CONSTANT MAX_ITEMS     16
+
+// #USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+ANALOG_INPUT   Select_Fb;
+                              
+STRING_INPUT   From_Processor[MAX_TEXT_LEN];
+
+// --- Outputs --------------------------------------------------------------
+
+ANALOG_OUTPUT  Select;
+
+STRING_OUTPUT  To_Processor;
+
+// --- Sockets --------------------------------------------------------------
+
+// --- Parameters -----------------------------------------------------------
+
+STRING_PARAMETER  Widget_ID[MAX_ID_LEN];
+INTEGER_PARAMETER Clear_Value_On_Release;
+
+STRING_PARAMETER Item_ID[MAX_ITEMS][MAX_ID_LEN];
+
+// --- Global Variables -----------------------------------------------------
+
+// --- Functions ------------------------------------------------------------
+
+// --- Events ---------------------------------------------------------------
+
+CHANGE Select_Fb
+{
+	If (Select_Fb = 0)
+	{
+		MakeString(To_Processor, "xcommand UserInterface Extensions Widget UnSetValue WidgetID: \x22%s\x22", Widget_ID);
+	}
+	Else
+	{
+		If (Len(Item_ID[Select_Fb]) > 0)
+		{
+			MakeString(To_Processor, "xcommand UserInterface Extensions Widget SetValue WidgetID: \x22%s\x22 Value: \x22%s\x22", Widget_ID, Item_ID[Select_Fb]);
+		}
+	}
+}
+
+CHANGE From_Processor
+{
+	INTEGER i;
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (From_Processor = "< Send ID >")
+	{
+		MakeString(To_Processor, "< %s >", Widget_ID);
+	}
+	Else
+	{
+		If (Find("Released", From_Processor))
+		{
+			Select = 0;
+
+			If (Clear_Value_On_Release = 1)
+			{
+				MakeString(To_Processor, "xcommand UserInterface Extensions Widget UnsetValue WidgetID: \x22%s\x22", Widget_ID);
+			}
+		}
+		Else If (Find("Pressed", From_Processor))
+		{
+			temp = Remove(Widget_ID, From_Processor);
+
+			For (i = 1 To MAX_ITEMS)
+			{
+				If (Len(Item_ID[i]) > 0)
+				{
+					If (Find(Item_ID[i], From_Processor))
+					{
+						Select = i;
+						Break;
+					}
+				}
+			}
+		}
+	}
+}
+
+// --- Main -----------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
+

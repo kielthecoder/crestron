@@ -1,0 +1,492 @@
+// Dealer Name: ConvergeOne
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+// #CATEGORY "" 
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #PRINT_TO_TRACE
+
+#DEFINE_CONSTANT MAX_BUF_LEN     2000
+#DEFINE_CONSTANT MAX_TEXT_LEN    200
+#DEFINE_CONSTANT MAX_NAME_LEN    50
+#DEFINE_CONSTANT MAX_QUEUE_LEN   20
+#DEFINE_CONSTANT MAX_SOURCES     8
+#DEFINE_CONSTANT MAX_CALLS       5
+#DEFINE_CONSTANT MAX_CALL_STATES 10
+
+// #USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+DIGITAL_INPUT Initialize;
+DIGITAL_INPUT Sleep;
+DIGITAL_INPUT Wake;
+DIGITAL_INPUT MicMuteOn;
+DIGITAL_INPUT MicMuteOff;
+STRING_INPUT  From_Widget_Module[MAX_TEXT_LEN];
+BUFFER_INPUT  From_Device[MAX_BUF_LEN];
+
+ANALOG_INPUT  Source_State[MAX_SOURCES];
+STRING_INPUT  Source_Name[MAX_SOURCES][MAX_NAME_LEN];
+
+// --- Outputs --------------------------------------------------------------
+
+ANALOG_OUTPUT Standby;
+ANALOG_OUTPUT MicMute;
+ANALOG_OUTPUT Presenting;
+ANALOG_OUTPUT Selected_Source;
+STRING_OUTPUT To_Widget_Module;
+STRING_OUTPUT To_Device;
+
+ANALOG_OUTPUT Call_Status[MAX_CALLS];
+
+// --- Sockets --------------------------------------------------------------
+
+// TCP_CLIENT
+// TCP_SERVER
+// UDP_SOCKET
+
+// --- Parameters -----------------------------------------------------------
+
+// INTEGER_PARAMETER
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+INTEGER_PARAMETER Paired_With_Other_Module;
+STRING_PARAMETER  Connector_ID[MAX_NAME_LEN];
+STRING_PARAMETER  Source_Type[MAX_SOURCES][MAX_NAME_LEN];
+
+// --- Structures -----------------------------------------------------------
+
+STRUCTURE CallInfo
+{
+	INTEGER ID;
+	INTEGER Status;
+};
+
+// --- Global Variables -----------------------------------------------------
+
+INTEGER giQueueLength;
+INTEGER giQueueIndex;
+INTEGER gfQueueBusy;
+
+STRING gsCmdQueue[MAX_QUEUE_LEN][MAX_TEXT_LEN];
+
+CallInfo Calls[MAX_CALLS];
+STRING   gsCallState[MAX_CALL_STATES][MAX_NAME_LEN];
+
+// --- Functions ------------------------------------------------------------
+
+FUNCTION SendCommand (STRING cmd)
+{
+	// Wait for queue to empty
+	While (giQueueLength = MAX_QUEUE_LEN)
+	{
+		Delay(50);
+	}
+	
+	// Stop processing the queue
+	gfQueueBusy = 1;
+	
+	// Insert command at end of queue
+	giQueueLength = giQueueLength + 1;
+	gsCmdQueue[giQueueLength] = cmd;
+	
+	// Resume processing the queue
+	gfQueueBusy = 0;
+	
+	Trace("%d items in the queue", giQueueLength);
+}
+
+FUNCTION ProcessQueue ()
+{
+	// Wait for queue to be available
+	While (gfQueueBusy = 1)
+	{
+		Delay(10);
+	}
+	
+	If (giQueueIndex < giQueueLength)
+	{
+		// Move to the next index and send to device
+		giQueueIndex = giQueueIndex + 1;
+		To_Device = gsCmdQueue[giQueueIndex] + "\n";
+		
+		Trace("Queue index is now %d", giQueueIndex);
+	}
+	Else
+	{
+		If (giQueueLength > 0)
+		{
+			// At the end of the queue, reset pointers
+			giQueueLength = 0;
+			giQueueIndex = 0;
+			
+			Trace("Queue reset");
+		}
+	}
+}
+
+FUNCTION SetSourceState(INTEGER src)
+{
+	STRING  temp[MAX_TEXT_LEN];
+	STRING  state[MAX_NAME_LEN];
+	
+	Switch (Source_State[src])
+	{
+		Case (1):
+		{
+			state = "Hidden";			
+		}
+		Case (2):
+		{
+			state = "Ready";
+		}
+		Case (3):
+		{
+			state = "NotReady";
+		}
+		Case (4):
+		{
+			state = "Error";
+		}
+	}
+	
+	MakeString(temp, "xcommand UserInterface Presentation ExternalSource State Set SourceIdentifier: \x22source-%d\x22 State: %s", src, state);
+	SendCommand(temp);
+}
+
+FUNCTION ReInitialize ()
+{
+	INTEGER i;
+	STRING  temp[MAX_TEXT_LEN];
+	
+	// Reset queue
+	giQueueLength = 0;
+	giQueueIndex = 0;
+	gfQueueBusy = 0;
+	
+	SendCommand("echo off");
+
+	If (Paired_With_Other_Module = 0)
+	{
+		SendCommand("xfeedback deregisterall");
+	}
+
+	SendCommand("xfeedback register /Status/Standby/State");
+	SendCommand("xfeedback register /Status/Audio/Microphones/Mute");
+	SendCommand("xfeedback register /Status/Conference/Presentation");
+	SendCommand("xfeedback register /Status/Call");
+	SendCommand("xfeedback register /Event/UserInterface/Extensions/Event");
+	SendCommand("xfeedback register /Event/UserInterface/Presentation/ExternalSource");
+	
+	SendCommand("xstatus Standby State");
+	SendCommand("xstatus Audio Microphones Mute");
+	SendCommand("xstatus Conference Presentation");
+	SendCommand("xstatus Call");
+	
+	SendCommand("xcommand UserInterface Presentation ExternalSource RemoveAll");
+	
+	For (i = 1 To MAX_SOURCES)
+	{
+		If (Source_State[i] > 0)
+		{
+			MakeString(temp, "xcommand UserInterface Presentation ExternalSource Add ConnectorId: %s SourceIdentifier: \x22source-%d\x22 Name: \x22%s\x22 Type: \x22%s\x22", Connector_ID, i, Source_Name[i], Source_Type[i]);
+			SendCommand(temp);
+			SetSourceState(i);
+		}
+	}
+}
+
+FUNCTION ProcessStandbyStatus (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("State: ", text))
+	{
+		temp = Remove("State: ", text);
+		
+		If (Find("Standby", text))
+			Standby = 1;
+		Else If (Find("EnteringStandby", text))
+			Standby = 2;
+		Else If (Find("Halfwake", text))
+			Standby = 3;
+		Else If (Find("Off", text))
+			Standby = 4;
+	}
+}
+
+FUNCTION ProcessAudioStatus (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("Mute: ", text))
+	{
+		temp = Remove("Mute: ", text);
+		
+		If (Find("On", text))
+			MicMute = 1;
+		Else If (Find("Off", text))
+			MicMute = 2;
+	}
+}
+
+FUNCTION ProcessConferencePresentationStatus (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("Mode: ", text))
+	{
+		temp = Remove("Mode: ", text);
+		
+		If (Find("Off", text))
+			Presenting = 0;
+		Else If (Find("Sending", text))
+			Presenting = 1;
+		Else If (Find("Receiving", text))
+			Presenting = 2;
+	}
+}
+
+FUNCTION ProcessConferenceStatus (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("Presentation ", text))
+	{
+		temp = Remove("Presentation ", text);
+		
+		ProcessConferencePresentationStatus(text);
+	}
+}
+
+FUNCTION ProcessCallStatus (STRING text)
+{
+	STRING  temp[MAX_TEXT_LEN];
+	INTEGER id;
+	INTEGER i;
+	INTEGER j;
+	
+	If (Find("Status: ", text))
+	{
+		id = AtoI(text);
+		
+		If (id > 0)
+		{
+			temp = Remove("Status: ", text);
+			
+			j = 99;
+			
+			For (i = 1 To MAX_CALLS)
+			{
+				If (Calls[i].ID = id)
+				{
+					Trace("ProcessCallStatus: Matched call %d at index %d", id, i);
+					
+					j = i;
+					Break;
+				}
+				Else
+				{
+					If ((Calls[i].Status = 0) && (j = 99))
+					{
+						Trace("ProcessCallStatus: Found first empty slot at index %d", i);
+						j = i;
+					}
+				}
+			}
+			
+			If (j <= MAX_CALLS)
+			{
+				Trace("ProcessCallStatus: Updating call %d in slot %d", id, j);
+				Calls[j].ID = id;
+				
+				For (i = 1 To MAX_CALL_STATES)
+				{
+					If (Find(gsCallState[i], text))
+					{
+						Trace("ProcessCallStatus: Matched call state %s", gsCallState[i]);
+						
+						Calls[j].Status = i - 1;
+						Call_Status[j] = Calls[j].Status;
+						Break;
+					}
+				}
+			}
+			Else
+			{
+				Trace("ProcessCallStatus: CallInfo array full??");
+			}
+		}
+	}
+}
+
+FUNCTION ProcessStatus (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("*s Standby ", text))
+	{
+		temp = Remove("*s Standby ", text);
+		ProcessStandbyStatus(text);
+	}
+	Else If (Find("*s Audio ", text))
+	{
+		temp = Remove("*s Audio ", text);
+		ProcessAudioStatus(text);
+	}
+	Else If (Find("*s Conference ", text))
+	{
+		temp = Remove("*s Conference ", text);
+		ProcessConferenceStatus(text);
+	}
+	Else If (Find("*s Call ", text))
+	{
+		temp = Remove("*s Call ", text);
+		ProcessCallStatus(text);
+	}
+}
+
+FUNCTION ProcessUserInterfaceEvent (STRING text)
+{
+	To_Widget_Module = text;
+}
+
+FUNCTION ProcessExternalSourceSelect (STRING text)
+{
+	INTEGER i;
+	STRING temp[MAX_TEXT_LEN];
+
+	For (i = 1 To MAX_SOURCES)
+	{
+		If (Source_State[i] = 2)
+		{
+			MakeString(temp, "source-%d", i);
+
+			If (Find(temp, text))
+			{
+				Selected_Source = i;
+			}
+		}
+	}
+}
+
+FUNCTION ProcessEvent (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("*e UserInterface Extensions Event ", text))
+	{
+		temp = Remove("*e UserInterface Extensions Event ", text);
+		ProcessUserInterfaceEvent(text);
+	}
+	Else If (Find("*e UserInterface Presentation ExternalSource Selected ", text))
+	{
+		temp = Remove("*e UserInterface Presentation ExternalSource Selected ", text);
+		ProcessExternalSourceSelect(text); 
+	}
+}
+
+FUNCTION ProcessResult (STRING text)
+{
+	STRING temp[MAX_TEXT_LEN];
+	
+	If (Find("*r Login successful", text))
+	{
+		ReInitialize();
+	}
+}
+
+// --- Events ---------------------------------------------------------------
+
+THREADSAFE PUSH Initialize
+{
+	ReInitialize();
+}
+
+PUSH Sleep
+{
+	SendCommand("xcommand Standby Activate");
+}
+
+PUSH Wake
+{
+	SendCommand("xcommand Standby Deactivate");
+}
+
+PUSH MicMuteOn
+{
+	SendCommand("xcommand Audio Microphones Mute");
+}
+
+PUSH MicMuteOff
+{
+	SendCommand("xcommand Audio Microphones UnMute");
+}
+
+CHANGE Source_State
+{
+	SetSourceState(GetLastModifiedArrayIndex());
+}
+
+THREADSAFE CHANGE From_Device
+{
+	STRING text[MAX_TEXT_LEN];
+	
+	While (1)
+	{
+		text = Gather("\n", From_Device);
+		
+		If (Left(text, 3) = "*r ")
+		{
+			ProcessResult(text);
+		}
+		Else If (Left(text, 3) = "*s ")
+		{
+			ProcessStatus(text);
+		}
+		Else If (Left(text, 3) = "*e ")
+		{
+			ProcessEvent(text);
+		}
+	}
+}
+
+CHANGE From_Widget_Module
+{
+	SendCommand(From_Widget_Module);
+}
+
+// --- Main -----------------------------------------------------------------
+
+Function Main()
+{
+	gsCallState[1]  = "Idle";
+	gsCallState[2]  = "Dialing";
+	gsCallState[3]  = "Ringing";
+	gsCallState[4]  = "Connecting";
+	gsCallState[5]  = "Connected";
+	gsCallState[6]  = "Disconnecting";
+	gsCallState[7]  = "OnHold";
+	gsCallState[8]  = "EarlyMedia";
+	gsCallState[9]  = "Preserved";
+	gsCallState[10] = "RemotePreserved";
+
+	WaitForInitializationComplete();
+	
+	While (1)
+	{
+		ProcessQueue();
+		Delay(10);
+	}
+}
+

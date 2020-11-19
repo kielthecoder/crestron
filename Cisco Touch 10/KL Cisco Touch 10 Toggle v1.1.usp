@@ -1,0 +1,86 @@
+// Dealer Name: ConvergeOne
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+// #CATEGORY "" 
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #PRINT_TO_TRACE
+
+#DEFINE_CONSTANT MAX_TEXT_LEN  200
+#DEFINE_CONSTANT MAX_ID_LEN    50
+#DEFINE_CONSTANT MAX_PARAM_LEN 50
+
+// #USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+DIGITAL_INPUT Tog_Set;
+DIGITAL_INPUT Tog_Reset;
+
+STRING_INPUT  From_Processor[MAX_TEXT_LEN];
+
+// --- Outputs --------------------------------------------------------------
+
+DIGITAL_OUTPUT Out;
+
+STRING_OUTPUT  To_Processor;
+
+// --- Sockets --------------------------------------------------------------
+
+// --- Parameters -----------------------------------------------------------
+
+STRING_PARAMETER Widget_ID[MAX_ID_LEN];
+
+// --- Global Variables -----------------------------------------------------
+
+// --- Functions ------------------------------------------------------------
+
+// --- Events ---------------------------------------------------------------
+
+PUSH Tog_Set
+{
+	MakeString(To_Processor, "xcommand UserInterface Extensions Widget SetValue WidgetID: \x22%s\x22 Value: \x22on\x22", Widget_ID);
+}
+
+PUSH Tog_Reset
+{
+	MakeString(To_Processor, "xcommand UserInterface Extensions Widget SetValue WidgetID: \x22%s\x22 Value: \x22off\x22", Widget_ID);
+}
+
+CHANGE From_Processor
+{
+	STRING temp[MAX_TEXT_LEN];
+
+	If (From_Processor = "< Send ID >")
+	{
+		MakeString(To_Processor, "< %s >", Widget_ID);
+	}
+	Else
+	{
+		If (Find("Changed", From_Processor))
+		{
+			temp = Remove(Widget_ID, From_Processor);
+			
+			If (Find("on", From_Processor))
+				Out = 1;
+			Else If (Find("off", From_Processor))
+				Out = 0;
+		}
+	}
+}
+
+// --- Main -----------------------------------------------------------------
+
+Function Main()
+{
+	WaitForInitializationComplete();
+}
+

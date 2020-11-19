@@ -1,0 +1,149 @@
+// Dealer Name: ConvergeOne
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+// #CATEGORY "" 
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #PRINT_TO_TRACE
+
+#DEFINE_CONSTANT MAX_TEXT_LEN 200
+#DEFINE_CONSTANT MAX_MODULES  100
+#DEFINE_CONSTANT MAX_ID_LEN   50
+
+// #USER_SIMPLSHARP_LIBRARY "SIMPLSharpLibrary1"
+
+// --- Inputs ---------------------------------------------------------------
+
+DIGITAL_INPUT Initialize;
+STRING_INPUT  From_System_Module[MAX_TEXT_LEN];
+
+STRING_INPUT  From_Widget_Module[MAX_MODULES][MAX_TEXT_LEN];
+
+// --- Outputs --------------------------------------------------------------
+
+STRING_OUTPUT To_System_Module;
+
+STRING_OUTPUT To_Widget_Module[MAX_MODULES];
+
+// --- Sockets --------------------------------------------------------------
+
+// TCP_CLIENT
+// TCP_SERVER
+// UDP_SOCKET
+
+// --- Parameters -----------------------------------------------------------
+
+// INTEGER_PARAMETER
+// SIGNED_INTEGER_PARAMETER
+// LONG_INTEGER_PARAMETER
+// SIGNED_LONG_INTEGER_PARAMETER
+// STRING_PARAMETER
+
+// --- Global Variables -----------------------------------------------------
+
+STRING gsWidgetID[MAX_MODULES][MAX_ID_LEN];
+
+// --- Functions ------------------------------------------------------------
+
+STRING_FUNCTION Strip (STRING s)
+{
+	INTEGER i;
+	INTEGER j;
+	
+	// Look for first printable ASCII character
+	For (i = 1 To Len(s))
+	{
+		If (Byte(s, i) > 32)
+			Break;
+	}
+	
+	// Look for last printable ASCII character
+	For (j = Len(s) To 1 Step -1)
+	{
+		If (Byte(s, j) > 32)
+			Break;
+	}
+	
+	// If our string was "   My Name  \r":
+	//   i = 4
+	//   j = 10
+	//   j - i = 6 + 1 = 7
+	//   Mid() = "My Name"
+	Return(Mid(s, i, j - i + 1));
+}
+
+// --- Events ---------------------------------------------------------------
+
+THREADSAFE PUSH Initialize
+{
+	INTEGER i;
+	
+	For (i = 1 To MAX_MODULES)
+	{
+		// Only process modules with a defined signal
+		If (IsSignalDefined(To_Widget_Module[i]))
+		{
+			MakeString(To_Widget_Module[i], "< Send ID >");
+			ProcessLogic();
+		}
+	}
+}
+
+CHANGE From_System_Module
+{
+	INTEGER i;
+	
+	For (i = 1 To MAX_MODULES)
+	{
+		// Duplicate IDs will only match the first one registered
+		If (Find(gsWidgetID[i], From_System_Module))
+		{
+			To_Widget_Module[i] = From_System_Module;
+			Break;
+		}
+	}
+}
+
+CHANGE From_Widget_Module
+{
+	INTEGER i;
+	INTEGER j;
+	STRING  temp[MAX_TEXT_LEN];
+	
+	i = GetLastModifiedArrayIndex();
+	
+	// Check to see if module is responding with Widget ID
+	If (Left(From_Widget_Module[i], 1) = "<")
+	{
+		j = Find(">", From_Widget_Module[i]);
+		
+		If (j > 0)
+		{
+			temp = Mid(From_Widget_Module[i], 2, Find(">", From_Widget_Module[i], 2) - 2);
+			gsWidgetID[i] = Strip(temp);
+			
+			Trace("Widget %s is #%d", gsWidgetID[i], i);
+		}
+	}
+	Else
+	{
+		// Pass device commands thru
+		To_System_Module = From_Widget_Module[i];
+	}	
+}
+
+// --- Main -----------------------------------------------------------------
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
+
