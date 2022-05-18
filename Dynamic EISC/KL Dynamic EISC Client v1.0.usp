@@ -1,0 +1,312 @@
+/*
+Dealer Name: IMT
+System Name:
+System Number:
+Programmer: Kiel Lofstrand
+Comments:
+*/
+
+// COMPILER DIRECTIVES /////////////////////////////////////////////////////////////////////
+
+#ENABLE_DYNAMIC
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+
+#DEFINE_CONSTANT BUF_SIZE 10000
+#DEFINE_CONSTANT ADDR_LEN 100
+#DEFINE_CONSTANT TEXT_LEN 255
+#DEFINE_CONSTANT MAX_SIGS 100
+
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+// LIBRARIES ///////////////////////////////////////////////////////////////////////////////
+
+// #USER_SIMPLSHARP_LIBRARY "LibraryName"
+
+// INPUTS //////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_INPUT Connect;
+ANALOG_INPUT  Port;
+STRING_INPUT  Address[ADDR_LEN];
+
+DIGITAL_INPUT dig_out[MAX_SIGS];
+ANALOG_INPUT  ana_out[MAX_SIGS];
+STRING_INPUT  ser_out[MAX_SIGS][TEXT_LEN];
+
+// OUTPUTS /////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_OUTPUT Connect_Fb;
+ANALOG_OUTPUT  Status;
+
+DIGITAL_OUTPUT dig_in[MAX_SIGS];
+ANALOG_OUTPUT  ana_in[MAX_SIGS];
+STRING_OUTPUT  ser_in[MAX_SIGS];
+
+// SOCKETS /////////////////////////////////////////////////////////////////////////////////
+
+TCP_CLIENT Client[BUF_SIZE];
+
+// PARAMETERS //////////////////////////////////////////////////////////////////////////////
+
+// STRUCTURES //////////////////////////////////////////////////////////////////////////////
+
+// GLOBAL VARIABLES ////////////////////////////////////////////////////////////////////////
+
+INTEGER giConnected;
+STRING  gsTxBuf[BUF_SIZE];
+
+// FUNCTIONS ///////////////////////////////////////////////////////////////////////////////
+
+FUNCTION TransmitBuffer ()
+{
+	Wait (2, TRANSMIT_WAIT)
+	{
+		If (giConnected)
+		{
+			SocketSend(Client, gsTxBuf);
+			Trace("Sent %d bytes", Len(gsTxBuf));
+			ClearBuffer(gsTxBuf);
+		}
+	}
+}
+
+FUNCTION SendControl (INTEGER flag)
+{
+	CancelWait(TRANSMIT_WAIT);
+	gsTxBuf = gsTxBuf + Chr(flag);
+	TransmitBuffer();
+}
+
+FUNCTION SendDigital (INTEGER n, INTEGER b)
+{
+	CancelWait(TRANSMIT_WAIT);
+
+	If (b = 1)
+	{
+		gsTxBuf = gsTxBuf + Chr((High(n) & 0x03) | 0x60);
+	}
+	Else
+	{
+		gsTxBuf = gsTxBuf + Chr((High(n) & 0x03) | 0x40);
+	}
+
+	gsTxBuf = gsTxBuf + Chr(Low(n));
+	TransmitBuffer();
+}
+
+FUNCTION SendAnalog (INTEGER n, INTEGER v)
+{
+	CancelWait(TRANSMIT_WAIT);
+
+	gsTxBuf = gsTxBuf + Chr((High(n) & 0x03) | 0x80);
+	gsTxBuf = gsTxBuf + Chr(Low(n));
+	gsTxBuf = gsTxBuf + Chr(High(v));
+	gsTxBuf = gsTxBuf + Chr(Low(v));
+	TransmitBuffer();
+}
+
+FUNCTION SendSerial (INTEGER n, STRING d)
+{
+	CancelWait(TRANSMIT_WAIT);
+
+	gsTxBuf = gsTxBuf + Chr((High(n) & 0x03) | 0xC0);
+	gsTxBuf = gsTxBuf + Chr(Low(n));
+	gsTxBuf = gsTxBuf + Chr(Len(d));
+	gsTxBuf = gsTxBuf + d;
+	TransmitBuffer();
+}
+
+// EVENT HANDLERS //////////////////////////////////////////////////////////////////////////
+
+PUSH Connect
+{
+	If (Address != "" && Port != 0)
+	{
+		Status = SocketConnectClient(Client, Address, Port, 0);
+	}
+}
+
+RELEASE Connect
+{
+	Status = SocketDisconnectClient(Client);
+}
+
+CHANGE dig_out
+{
+	INTEGER n;
+
+	n = GetLastModifiedArrayIndex();
+	SendDigital(n, dig_out[n]);
+}
+
+CHANGE ana_out
+{
+	INTEGER n;
+
+	n = GetLastModifiedArrayIndex();
+	SendAnalog(n, ana_out[n]);
+}
+
+CHANGE ser_out
+{
+	INTEGER n;
+
+	n = GetLastModifiedArrayIndex();
+	SendSerial(n, ser_out[n]);
+}
+
+SOCKETCONNECT Client
+{
+	gsTxBuf = "";
+	giConnected = 1;
+	Connect_Fb = giConnected;
+
+	SocketSend(Client, "\xFC\xFD");
+}
+
+SOCKETDISCONNECT Client
+{
+	giConnected = 0;
+	Connect_Fb = giConnected;
+}
+
+SOCKETSTATUS Client
+{
+	Status = SocketGetStatus();
+}
+
+THREADSAFE SOCKETRECEIVE Client
+{
+	INTEGER b1;
+	INTEGER b2;
+	INTEGER n;
+	STRING  temp[TEXT_LEN];
+
+	While (giConnected)
+	{
+		temp = GatherByLength(1, Client.SocketRxBuf);
+		b1 = GetC(temp);
+
+		CSwitch (b1 & 0xE0)
+		{
+			Case (0x40):	// Digital LOW
+			{
+				temp = GatherByLength(1, Client.SocketRxBuf);
+				
+				b1 = b1 & 0x03;		// Upper 2 bits
+				b2 = GetC(temp);	// Lower 8 bits
+				n = b1 * 256 + b2;
+
+				dig_in[n] = 0;
+				Break;
+			}
+			Case (0x60):	// Digital HIGH
+			{
+				temp = GatherByLength(1, Client.SocketRxBuf);
+
+				b1 = b1 & 0x03;		// Upper 2 bits
+				b2 = GetC(temp);	// Lower 8 bits
+				n = b1 * 256 + b2;
+
+				dig_in[n] = 1;
+				Break;
+			}
+			Case (0x80):	// Analog
+			{
+				temp = GatherByLength(3, Client.SocketRxBuf);
+
+				b1 = b1 & 0x03;		// Upper 2 bits
+				b2 = GetC(temp);	// Lower 8 bits
+				n = b1 * 256 + b2;
+
+				b1 = GetC(temp);	// Upper 8 bits
+				b2 = GetC(temp);	// Lower 8 bits
+
+				ana_in[n] = b1 * 256 + b2;
+				Break;
+			}
+			Case (0xA0):	// Invalid
+			{
+				Trace("Invalid bitmask! Is framing off?");
+				Break;
+			}
+			Case (0xC0):	// Serial
+			{
+				temp = GatherByLength(2, Client.SocketRxBuf);
+
+				b1 = b1 & 0x03;		// Upper 2 bits
+				b2 = GetC(temp);	// Lower 8 bits
+				n = b1 * 256 + b2;
+
+				b1 = GetC(temp);	// Length (max 255)
+				ser_in[n] = GatherByLength(b1, Client.SocketRxBuf);
+				Break;
+			}
+			Case (0xE0):	// Control
+			{
+				CSwitch (b1)
+				{
+					Case (0xFB):	// OK
+					{
+						Break;
+					}
+					Case (0xFC):	// Clear Outputs
+					{
+						For (n = 1 To MAX_SIGS)
+						{
+							dig_in[n] = 0;
+							ana_in[n] = 0;
+							ser_in[n] = "";
+						}
+						SendControl(0xFB);	// OK
+						Break;
+					}
+					Case (0xFD):	// Sync Inputs
+					{
+						For (n = 1 To MAX_SIGS)
+						{
+							If (dig_out[n] = 1)
+							{
+								SendDigital(n, 1);
+							}
+
+							If (ana_out[n] > 0)
+							{
+								SendAnalog(n, ana_out[n]);
+							}
+
+							If (Len(ser_out[n]) > 0)
+							{
+								SendSerial(n, ser_out[n]);
+							}
+						}
+						SendControl(0xFB);	// OK
+						Break;
+					}
+					Case (0xFE):
+					{
+						Trace("Error response! Is framing off?");
+						Break;
+					}
+				}
+				Break;
+			}
+		}
+	}
+
+	ClearBuffer(Client.SocketRxBuf);
+}
+
+// CALLBACKS AND DELEGATES /////////////////////////////////////////////////////////////////
+
+// MAIN ////////////////////////////////////////////////////////////////////////////////////
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
