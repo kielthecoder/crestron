@@ -1,0 +1,149 @@
+/*
+Dealer Name: IMT
+System Name:
+System Number:
+Programmer: Kiel Lofstrand
+Comments:
+*/
+
+// COMPILER DIRECTIVES /////////////////////////////////////////////////////////////////////
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFINE_CONSTANT BUFFER_SIZE 1500
+#DEFINE_CONSTANT KEY_LEN     50
+#DEFINE_CONSTANT HOST_LEN    50
+#DEFINE_CONSTANT TEXT_LEN    500
+
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+// INPUTS //////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_INPUT Initialize;
+DIGITAL_INPUT Audio_Mute_On, Audio_Mute_Off;
+
+STRING_INPUT Stream_Host[HOST_LEN];
+
+BUFFER_INPUT From_Device[BUFFER_SIZE];
+
+// OUTPUTS /////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_OUTPUT Initialize_Fb;
+
+STRING_OUTPUT ID_Fb;
+STRING_OUTPUT Model_Fb;
+STRING_OUTPUT Firmware_Fb;
+STRING_OUTPUT MAC_Address_Fb;
+STRING_OUTPUT IP_Address_Fb;
+STRING_OUTPUT Stream_Host_Fb;
+
+STRING_OUTPUT To_Device;
+
+// GLOBAL VARIABLES ////////////////////////////////////////////////////////////////////////
+
+STRING gsStreamHost[HOST_LEN];
+
+// FUNCTIONS ///////////////////////////////////////////////////////////////////////////////
+
+// EVENT HANDLERS //////////////////////////////////////////////////////////////////////////
+
+PUSH Initialize
+{
+	Initialize_Fb = 0;
+	To_Device = "CMD=START&UNIT.ID=ALL&QUERY.STATUS=TRUE&CMD=END\x0A";
+}
+
+PUSH Audio_Mute_On
+{
+	To_Device = "CMD=START&UNIT.ID=ALL&AUDIO.MUTE=TRUE&CMD=END\x0A";
+}
+
+PUSH Audio_Mute_Off
+{
+	To_Device = "CMD=START&UNIT.ID=ALL&AUDIO.MUTE=FALSE&CMD=END\x0A";
+}
+
+CHANGE Stream_Host
+{
+	gsStreamHost = Stream_Host;
+
+	If (gsStreamHost = "")
+	{
+		Stream_Host_Fb = "";
+		To_Device = "CMD=START&UNIT.ID=ALL&STREAM.CONNECT=FALSE&CMD=END\x0A";
+	}
+	Else
+	{
+		To_Device = "CMD=START&UNIT.ID=ALL&STREAM.HOST=" + gsStreamHost + "&STREAM.CONNECT=TRUE&CMD=END\x0A";
+	}
+}
+
+THREADSAFE CHANGE From_Device
+{
+	STRING text[TEXT_LEN];
+	STRING key[KEY_LEN];
+	STRING value[TEXT_LEN];
+	INTEGER n;
+
+	While (1)
+	{
+		text = Gather("&", From_Device);
+		n = Find("=", text);
+
+		If (n > 0)
+		{
+			key = Mid(text, 1, n - 1);
+			value = Mid(text, n + 1, Len(text) - n - 1);
+
+			If (key = "UNIT.ID")
+			{
+				ID_Fb = value;
+			}
+			Else If (key = "UNIT.MODEL")
+			{
+				Model_Fb = value;
+			}
+			Else If (key = "UNIT.FIRMWARE")
+			{
+				Firmware_Fb = value;
+			}
+			Else If (key = "UNIT.MAC_ADDRESS")
+			{
+				MAC_Address_Fb = value;
+			}
+			Else If (key = "IP.ADDRESS")
+			{
+				IP_Address_Fb = value;
+			}
+			Else If (key = "QUERY.STATUS")
+			{
+				If (value = "OK")
+				{
+					Initialize_Fb = 1;
+				}
+			}
+			Else If (key = "STREAM.CONNECT")
+			{
+				If (value = "queue_next_switch")
+				{
+					Stream_Host_Fb = gsStreamHost;
+				}
+			}
+		}
+	}
+}
+
+// MAIN ////////////////////////////////////////////////////////////////////////////////////
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
