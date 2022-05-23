@@ -1,0 +1,108 @@
+/*
+Dealer Name: IMT
+System Name:
+System Number:
+Programmer: Kiel Lofstrand
+Comments:
+*/
+
+// COMPILER DIRECTIVES /////////////////////////////////////////////////////////////////////
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+#DEFINE_CONSTANT ADDR_LEN 100
+#DEFINE_CONSTANT BUF_LEN  1000
+
+// LIBRARIES ///////////////////////////////////////////////////////////////////////////////
+
+// #USER_SIMPLSHARP_LIBRARY "LibraryName"
+
+// INPUTS //////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_INPUT Connect;
+ANALOG_INPUT  Port;
+STRING_INPUT  Address[ADDR_LEN];
+STRING_INPUT  TX[BUF_LEN];
+
+// OUTPUTS /////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_OUTPUT Connect_Fb;
+ANALOG_OUTPUT  Status;
+STRING_OUTPUT  RX;
+
+// SOCKETS /////////////////////////////////////////////////////////////////////////////////
+
+TCP_CLIENT Socket[BUF_LEN];
+
+// PARAMETERS //////////////////////////////////////////////////////////////////////////////
+
+// STRUCTURES //////////////////////////////////////////////////////////////////////////////
+
+// GLOBAL VARIABLES ////////////////////////////////////////////////////////////////////////
+
+INTEGER giConnected;
+
+// FUNCTIONS ///////////////////////////////////////////////////////////////////////////////
+
+// EVENT HANDLERS //////////////////////////////////////////////////////////////////////////
+
+PUSH Connect
+{
+	SocketConnectClient(Socket, Address, Port, 1);
+}
+
+RELEASE Connect
+{
+	SocketDisconnectClient(Socket);
+}
+
+CHANGE TX
+{
+	If (giConnected)
+	{
+		Trace("Sending %d bytes...", Len(TX));
+		SocketSend(Socket, TX);
+	}
+}
+
+SOCKETSTATUS Socket
+{
+	Status = SocketGetStatus();
+}
+
+SOCKETCONNECT Socket
+{
+	giConnected = 1;
+	Connect_Fb = giConnected;
+}
+
+SOCKETDISCONNECT Socket
+{
+	giConnected = 0;
+	Connect_Fb = giConnected;
+}
+
+SOCKETRECEIVE Socket
+{
+	RX = Socket.SocketRxBuf;
+	ClearBuffer(Socket.SocketRxBuf);
+}
+
+// CALLBACKS AND DELEGATES /////////////////////////////////////////////////////////////////
+
+// MAIN ////////////////////////////////////////////////////////////////////////////////////
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
