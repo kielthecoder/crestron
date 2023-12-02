@@ -1,0 +1,253 @@
+/*
+Dealer Name: IMT
+System Name:
+System Number:
+Programmer: Kiel Lofstrand
+Comments:
+*/
+
+// COMPILER DIRECTIVES /////////////////////////////////////////////////////////////////////
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+#ENABLE_TRACE
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFINE_CONSTANT BUFFER_SIZE 4000
+#DEFINE_CONSTANT KEY_LEN     50
+#DEFINE_CONSTANT HOST_LEN    50
+#DEFINE_CONSTANT TEXT_LEN    2000
+
+/*
+#HELP_BEGIN
+   (add additional lines of help lines)
+#HELP_END
+*/
+
+// INPUTS //////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_INPUT Initialize;
+DIGITAL_INPUT Query_Video;
+DIGITAL_INPUT Audio_Mute_On, Audio_Mute_Off;
+
+DIGITAL_INPUT Enable_Debug;
+
+STRING_INPUT Stream_Host[HOST_LEN];
+
+BUFFER_INPUT From_Device[BUFFER_SIZE];
+
+// OUTPUTS /////////////////////////////////////////////////////////////////////////////////
+
+DIGITAL_OUTPUT Initialize_Fb;
+
+ANALOG_OUTPUT Video_Horizontal_Fb;
+ANALOG_OUTPUT Video_Vertical_Fb;
+ANALOG_OUTPUT Video_Refresh_Fb;
+
+STRING_OUTPUT ID_Fb;
+STRING_OUTPUT Model_Fb;
+STRING_OUTPUT Firmware_Fb;
+STRING_OUTPUT MAC_Address_Fb;
+STRING_OUTPUT IP_Address_Fb;
+STRING_OUTPUT Stream_Host_Fb;
+
+STRING_OUTPUT Debug_Key;
+STRING_OUTPUT Debug_Value;
+
+STRING_OUTPUT To_Device;
+
+// GLOBAL VARIABLES ////////////////////////////////////////////////////////////////////////
+
+STRING gsStreamHost[HOST_LEN];
+STRING gsLastHost[HOST_LEN];
+STRING gsLastVideoTiming[TEXT_LEN];
+
+// FUNCTIONS ///////////////////////////////////////////////////////////////////////////////
+
+FUNCTION SendCommand (STRING cmd)
+{
+	MakeString(To_Device, "CMD=START&UNIT.ID=ALL&%s&CMD=END", cmd);
+}
+
+// EVENT HANDLERS //////////////////////////////////////////////////////////////////////////
+
+PUSH Initialize
+{
+	Initialize_Fb = 0;
+	// To_Device = "CMD=START&UNIT.ID=ALL&QUERY.STATUS=TRUE&CMD=END";
+	SendCommand("QUERY.STATUS=TRUE");
+}
+
+PUSH Query_Video
+{
+	SendCommand("QUERY.VIDEO_TIMING=TRUE");
+}
+
+PUSH Audio_Mute_On
+{
+	// To_Device = "CMD=START&UNIT.ID=ALL&AUDIO.MUTE=TRUE&CMD=END";
+	SendCommand("AUDIO.MUTE=TRUE");
+}
+
+PUSH Audio_Mute_Off
+{
+	// To_Device = "CMD=START&UNIT.ID=ALL&AUDIO.MUTE=FALSE&CMD=END";
+	SendCommand("AUDIO.MUTE=FALSE");
+}
+
+CHANGE Stream_Host
+{
+	STRING temp[100];
+
+	gsStreamHost = Stream_Host;
+
+	If (gsStreamHost = "")
+	{
+		Stream_Host_Fb = "";
+		//To_Device = "CMD=START&UNIT.ID=ALL&STREAM.HOST=&STREAM.CONNECT=FALSE&CMD=END";
+		SendCommand("VIDEO.OUTPUT=OFF");
+	}
+	Else
+	{
+		If (gsStreamHost != gsLastHost)
+		{
+			// To_Device = "CMD=START&UNIT.ID=ALL&STREAM.HOST=" + gsStreamHost + "&STREAM.CONNECT=TRUE&CMD=END";
+			temp = "STREAM.HOST=" + gsStreamHost + "&STREAM.CONNECT=TRUE";
+			SendCommand(temp);
+
+			gsLastHost = gsStreamHost;
+		}
+
+		// To_Device = "CMD=START&UNIT.ID=ALL&VIDEO.OUTPUT=NORMAL&CMD=END";
+		SendCommand("VIDEO.OUTPUT=NORMAL");
+	}
+}
+
+THREADSAFE CHANGE From_Device
+{
+	STRING text[TEXT_LEN];
+	STRING key[KEY_LEN];
+	STRING value[TEXT_LEN];
+
+	INTEGER n;
+	INTEGER horz;
+	INTEGER vert;
+	INTEGER ref;
+
+	// VIDEO.TIMING= will likely return multiple chunks of text so handle differently
+	If (Find("VIDEO.TIMING=", From_Device))
+	{
+		// Will be something like VIDEO.TIMING=Timing Table: Serial Number[0x006B] [3840]x[2160] [30]Hz\x0A\x09....
+		text = Gather("QUERY.VIDEO_TIMING=OK", From_Device);
+		key = Remove("VIDEO.TIMING=", text);
+
+		// Grab everything before "&QUERY.VIDEO_TIMING=OK"
+		value = Left(text, Len(text) - Len("QUERY.VIDEO_TIMING=OK") - 1);
+
+		// "Not Available" means no source detected
+		If (value = "Not Available")
+		{
+			If (gsLastVideoTiming != "Not Available")
+			{
+				gsLastVideoTiming = value;
+				//Video_Timing_Fb = gsLastVideoTiming;
+
+				Video_Horizontal_Fb = 0;
+				Video_Vertical_Fb = 0;
+				Video_Refresh_Fb = 0;
+			}
+		}
+		Else
+		{
+			// Looking for "Serial Number[0x006B] [3840]X[2160] [30]Hz"
+			key = Remove("]", value);
+			key = Remove("[", value);
+			horz = AtoI(value);
+			key = Remove("[", value);
+			vert = AtoI(value);
+			key = Remove("[", value);
+			ref = AtoI(value);
+
+			// Turn it into something more readable
+			MakeString(value, "%dx%d@%d", horz, vert, ref);
+
+			If (gsLastVideoTiming != value)
+			{
+				gsLastVideoTiming = value;
+				//Video_Timing_Fb = gsLastVideoTiming;
+				Video_Horizontal_Fb = horz;
+				Video_Vertical_Fb = vert;
+				Video_Refresh_Fb = ref;
+			}
+		}
+	}
+	Else
+	{
+		While (Find("=", From_Device))
+		{
+			n = Find("=", From_Device);
+			key = Mid(From_Device, 1, n - 1);
+
+			If (Find("&", From_Device))
+			{
+				text = Gather("&", From_Device);
+			}
+			Else
+			{
+				text = From_Device;
+				ClearBuffer(From_Device);
+			}
+
+			value = Mid(text, n + 1, Len(text) - n - 1);
+
+			If (Enable_Debug)
+			{
+				Debug_Key = key;
+				Debug_Value = value;
+			}
+	
+			If (key = "UNIT.ID")
+			{
+				ID_Fb = value;
+			}
+			Else If (key = "UNIT.MODEL")
+			{
+				Model_Fb = value;
+			}
+			Else If (key = "UNIT.FIRMWARE")
+			{
+				Firmware_Fb = value;
+			}
+			Else If (key = "UNIT.MAC_ADDRESS")
+			{
+				MAC_Address_Fb = value;
+			}
+			Else If (key = "IP.ADDRESS")
+			{
+				IP_Address_Fb = value;
+			}
+			Else If (key = "QUERY.STATUS")
+			{
+				If (value = "OK")
+				{
+					Initialize_Fb = 1;
+				}
+			}
+			Else If (key = "STREAM.CONNECT")
+			{
+				If (value = "queue_next_switch")
+				{
+					Stream_Host_Fb = gsStreamHost;
+				}
+			}
+		}
+	}
+}
+
+// MAIN ////////////////////////////////////////////////////////////////////////////////////
+
+FUNCTION Main()
+{
+	WaitForInitializationComplete();
+}
