@@ -1,0 +1,156 @@
+// Dealer Name: ConvergeOne
+// System Name:
+// System Number:
+// Programmer: Kiel Lofstrand
+// Comments:
+
+// --- Compiler Directives --------------------------------------------------
+// #CATEGORY "" 
+// #DIGITAL_EXPAND 
+// #ANALOG_SERIAL_EXPAND 
+
+#DEFAULT_VOLATILE
+#ENABLE_STACK_CHECKING
+// #ENABLE_TRACE
+// #PRINT_TO_TRACE
+
+#DEFINE_CONSTANT MAX_FILE_NAME_LEN 200
+#DEFINE_CONSTANT MAX_PAGE_SIZE     10
+#DEFINE_CONSTANT MAX_NAME_LEN      50
+#DEFINE_CONSTANT MAX_NUMBER_LEN    50
+
+#USER_SIMPLSHARP_LIBRARY "MassLogic"
+
+// --- Inputs ---------------------------------------------------------------
+
+DIGITAL_INPUT Load;
+DIGITAL_INPUT Store;
+DIGITAL_INPUT First_Page;
+DIGITAL_INPUT Previous_Page;
+DIGITAL_INPUT Next_Page;
+DIGITAL_INPUT Last_Page;
+DIGITAL_INPUT Clear_Selection;
+DIGITAL_INPUT Add_New_Contact;
+DIGITAL_INPUT Delete_Selected_Contact;
+
+ANALOG_INPUT  Select;
+STRING_INPUT  New_Contact_Name[MAX_NAME_LEN];
+STRING_INPUT  New_Contact_Number[MAX_NUMBER_LEN];
+
+// --- Outputs --------------------------------------------------------------
+
+DIGITAL_OUTPUT Load_Fb;
+DIGITAL_OUTPUT Store_Fb;
+
+ANALOG_OUTPUT Page_Size;
+ANALOG_OUTPUT Current_Page;
+ANALOG_OUTPUT Total_Pages;
+
+ANALOG_OUTPUT Select_Fb;
+
+STRING_OUTPUT Selected_Entry_Name;
+STRING_OUTPUT Selected_Entry_Number;
+
+STRING_OUTPUT Entry_Name[MAX_PAGE_SIZE];
+
+// --- Parameters -----------------------------------------------------------
+
+STRING_PARAMETER File_Name[MAX_FILE_NAME_LEN];
+
+// --- Global Variables -----------------------------------------------------
+
+Phonebook Contacts;
+
+// --- Events ---------------------------------------------------------------
+
+THREADSAFE PUSH Load
+{
+	Contacts.Load();
+	Pulse(1, Load_Fb);
+}
+
+THREADSAFE PUSH Store
+{
+	Contacts.Store();
+	Pulse(1, Store_Fb);
+}
+
+THREADSAFE PUSH First_Page
+{
+	Contacts.FirstPage();
+}
+
+THREADSAFE PUSH Previous_Page
+{
+	Contacts.PreviousPage();
+}
+
+THREADSAFE PUSH Next_Page
+{
+	Contacts.NextPage();
+}
+
+THREADSAFE PUSH Last_Page
+{
+	Contacts.LastPage();
+}
+
+THREADSAFE CHANGE Select
+{
+	Contacts.Selection = Select;
+}
+
+THREADSAFE PUSH Clear_Selection
+{
+	Contacts.Selection = 0;
+}
+
+THREADSAFE PUSH Add_New_Contact
+{
+	Contacts.Add(New_Contact_Name, New_Contact_Number);
+}
+
+THREADSAFE PUSH Delete_Selected_Contact
+{
+	Contacts.DeleteSelected();
+}
+
+// --- Main -----------------------------------------------------------------
+
+EventHandler Contacts_UpdatePageNumber(Phonebook sender, EventArgs e)
+{
+	Current_Page = sender.CurrentPage;
+	Total_Pages = sender.TotalPages;
+}
+
+EventHandler Contacts_UpdatePageEntries(Phonebook sender, EventArgs e)
+{
+	INTEGER i;
+
+	For (i = 1 To sender.PageSize)
+	{
+		Entry_Name[i] = sender.EntryName(i);
+	}
+}
+
+EventHandler Contacts_OnSelection(Phonebook sender, EventArgs e)
+{
+	Select_Fb = Contacts.Selection;
+	Selected_Entry_Name = Contacts.SelectedEntryName;
+	Selected_Entry_Number = Contacts.SelectedEntryNumber;	
+}
+
+Function Main()
+{
+	Contacts.Initialize();
+	Contacts.FileName = File_Name;
+
+	RegisterEvent(Contacts, UpdatePageNumber, Contacts_UpdatePageNumber);
+	RegisterEvent(Contacts, UpdatePageEntries, Contacts_UpdatePageEntries);
+	RegisterEvent(Contacts, OnSelection, Contacts_OnSelection);
+
+	WaitForInitializationComplete();
+
+	Page_Size = Contacts.PageSize;
+}
+
